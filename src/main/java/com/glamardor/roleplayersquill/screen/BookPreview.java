@@ -1,0 +1,92 @@
+package com.glamardor.roleplayersquill.screen;
+
+import com.glamardor.roleplayersquill.text.Layout;
+import com.glamardor.roleplayersquill.text.Paragraph;
+import com.glamardor.roleplayersquill.text.QuillStyle;
+import com.glamardor.roleplayersquill.text.Widths;
+import net.minecraft.client.font.TextRenderer;
+import net.minecraft.client.gui.DrawContext;
+import net.minecraft.text.Text;
+import org.jetbrains.annotations.Nullable;
+
+/**
+ * Drawing a laid-out line onto a strip of parchment, for the windows that show what a page will
+ * look like before anything is put on it.
+ *
+ * <p>The same line the editor draws and the encoder writes – leaders, list markers, padding and all
+ * – because a preview that is drawn by different code is a preview of a different page.
+ */
+public final class BookPreview {
+	private static final int INK = 0xFF000000;
+
+	private BookPreview() {
+	}
+
+	/** Draws one laid-out line with its left edge at x. */
+	public static void drawLine(DrawContext context, TextRenderer textRenderer, Layout.LaidLine line,
+			java.util.List<Paragraph> page, int x, int y) {
+		Paragraph paragraph = page.get(line.paragraph);
+		float at = x + line.leftPad.width();
+		if (line.frame.present()) {
+			String bar = String.valueOf(line.frame.bar);
+			context.drawText(textRenderer, bar, x, y, INK, false);
+			context.drawText(textRenderer, bar, (int) (x + line.frame.barRight()), y, INK, false);
+			at += line.frame.textLeft();
+		}
+
+		if (!line.marker.isEmpty()) {
+			context.drawText(textRenderer,
+					Text.literal(line.marker).setStyle(line.markerStyle.toVanilla(0)), (int) at, y, INK, false);
+			at += Widths.widthOf(line.marker, line.markerStyle.bold()) + line.markerPad.width();
+		}
+
+		StringBuilder run = new StringBuilder();
+		QuillStyle runStyle = null;
+		for (int i = line.start; i < line.contentEnd; i++) {
+			QuillStyle style = paragraph.styleAt(i);
+			if (i == line.leaderAt) {
+				at = flush(context, textRenderer, run, runStyle, at, y);
+				runStyle = null;
+				at += line.leaderPad.width();
+				if (line.leaderDots > 0) {
+					String dots = ".".repeat(line.leaderDots);
+					context.drawText(textRenderer, Text.literal(dots).setStyle(style.toVanilla(0)),
+							(int) at, y, INK, false);
+					at += Widths.widthOf(dots, style.bold());
+				}
+				continue;
+			}
+			Widths.Padding pad = paragraph.charAt(i) == ' ' ? line.padFor(i) : null;
+			boolean widened = pad != null && (pad.count() != 1 || pad.bold() != 0);
+			if (runStyle == null || !runStyle.equals(style) || widened) {
+				at = flush(context, textRenderer, run, runStyle, at, y);
+				runStyle = widened ? null : style;
+			}
+			if (widened) {
+				at += pad.width();
+				continue;
+			}
+			run.append(paragraph.charAt(i));
+		}
+		at = flush(context, textRenderer, run, runStyle, at, y);
+
+		if (line.hyphen) {
+			QuillStyle style = paragraph.styleAt(Math.max(line.start, line.contentEnd - 1));
+			context.drawText(textRenderer, Text.literal("-").setStyle(style.toVanilla(0)), (int) at, y, INK, false);
+		}
+	}
+
+	private static float flush(DrawContext context, TextRenderer textRenderer, StringBuilder run,
+			@Nullable QuillStyle style, float x, int y) {
+		if (run.isEmpty()) {
+			return x;
+		}
+		QuillStyle applied = style == null ? QuillStyle.PLAIN : style;
+		int colour = applied.color() == QuillStyle.INHERIT ? INK : 0xFF000000 | applied.color();
+		String text = run.toString();
+		context.drawText(textRenderer, Text.literal(text).setStyle(applied.toVanilla(colour & 0xFFFFFF)),
+				(int) x, y, colour, false);
+		run.setLength(0);
+		return x + Widths.widthOf(text, applied.bold());
+	}
+}

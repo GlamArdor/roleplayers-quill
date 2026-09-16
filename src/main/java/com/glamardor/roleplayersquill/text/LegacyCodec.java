@@ -1,0 +1,509 @@
+package com.glamardor.roleplayersquill.text;
+
+import net.minecraft.text.Text;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Writes a page out as the string a vanilla server will accept, and reads one back in.
+ *
+ * <p>A book leaves the client as plain text: {@code BookUpdateC2SPacket} carries strings, and the
+ * server turns them into components itself. The one thing it does not do on the way is strip
+ * section signs, which is what makes all of this possible – the same {@code §} codes the chat is
+ * kicked for carrying are passed through for books untouched, and the book renderer resolves them
+ * exactly as it resolves the ones in a sign.
+ *
+ * <p>So everything the editor can do to a page has to come out as codes and spaces. The codes carry
+ * the five switches and sixteen colours; the spaces carry the alignment, four pixels at a time and
+ * five when they are bold. Anything left over – a real colour, a link, a tooltip – needs the page
+ * to be sent as a component instead, and that is a different writer.
+ *
+ * <h2>Being frugal</h2>
+ *
+ * <p>A page holds 1024 characters and every {@code §x} spends two of them, so the codes emitted are
+ * the fewest that get from the style now in force to the one wanted. A colour code resets the
+ * switches, which means turning bold off is spelled either as the colour again or as {@code §r},
+ * and picking the shorter of the two is worth a line of text per page on a heavily formatted one.
+ */
+public final class LegacyCodec {
+	public static final char SECTION = '§';
+	private static final char[] COLOR_CODES = {
+			'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'
+	};
+
+	private LegacyCodec() {
+	}
+
+	/** Hover text is written by hand with codes in it, and the book renderer resolves them itself. */
+	public static Text toText(String legacy) {
+		return Text.literal(legacy);
+	}
+
+	// ---- writing --------------------------------------------------------------------------------
+
+	/**
+	 * One page, laid out and written.
+	 *
+	 * @param page  the paragraphs, as the editor holds them
+	 * @param lines the lines {@link Layout} broke them into, already padded
+	 */
+	public static String encode(List<Paragraph> page, List<Layout.LaidLine> lines) {
+		Writer writer = new Writer();
+		for (int i = 0; i < lines.size(); i++) {
+			if (i > 0) {
+				writer.newLine();
+			}
+			encodeLine(writer, page, lines.get(i));
+		}
+		return writer.toString();
+	}
+
+	private static void encodeLine(Writer writer, List<Paragraph> page, Layout.LaidLine line) {
+		Paragraph paragraph = page.get(line.paragraph);
+
+		if (line.frame.present()) {
+			writer.style(QuillStyle.PLAIN);
+			writer.raw(String.valueOf(line.frame.bar));
+			Widths.Padding gap = Widths.pad(FrameStyle.LEFT_MARGIN);
+			writer.spaces(QuillStyle.PLAIN, gap.count(), gap.bold());
+		}
+		if (!line.leftPad.isEmpty()) {
+			writer.spaces(QuillStyle.PLAIN, line.leftPad.count(), line.leftPad.bold());
+		}
+		if (!line.marker.isEmpty()) {
+			writer.style(line.markerStyle);
+			writer.raw(line.marker);
+			if (!line.markerPad.isEmpty()) {
+				writer.spaces(QuillStyle.PLAIN, line.markerPad.count(), line.markerPad.bold());
+			}
+		}
+
+		for (int i = line.start; i < line.contentEnd; i++) {
+			char c = paragraph.charAt(i);
+			QuillStyle style = paragraph.styleAt(i);
+			if (i == line.leaderAt) {
+				// The tab itself is never written. What goes on the page is what it stood for.
+				if (!line.leaderPad.isEmpty()) {
+					writer.spaces(style.withObfuscated(false), line.leaderPad.count(), line.leaderPad.bold());
+				}
+				if (line.leaderDots > 0) {
+					writer.style(style);
+					writer.raw(".".repeat(line.leaderDots));
+				}
+				continue;
+			}
+			if (c == ' ') {
+				Widths.Padding pad = line.padFor(i);
+				if (pad != null && (pad.count() != 1 || pad.bold() != 0)) {
+					// A widened gap: the obfuscation has to come off or the blank fills with noise.
+					writer.spaces(style.withObfuscated(false), pad.count(), pad.bold());
+					continue;
+				}
+			}
+			writer.style(style);
+			writer.raw(String.valueOf(c));
+		}
+
+		if (line.hyphen) {
+			writer.style(paragraph.styleAt(Math.max(line.start, line.contentEnd - 1)));
+			writer.raw("-");
+		}
+
+		if (line.frame.present()) {
+			// Out to the bar on the right, which stands in the same place on every line: there are
+			// always twelve pixels or more to cross, and every such gap can be written with spaces.
+			float used = line.frame.textLeft() + line.leftPad.width() + line.naturalWidth;
+			Widths.Padding gap = Widths.pad(line.frame.barRight() - used);
+			writer.spaces(QuillStyle.PLAIN, gap.count(), gap.bold());
+			writer.style(QuillStyle.PLAIN);
+			writer.raw(String.valueOf(line.frame.bar));
+		}
+	}
+
+	/** What a page will cost of its thousand characters, without building the page twice. */
+	public static int cost(List<Paragraph> page, List<Layout.LaidLine> lines) {
+		return encode(page, lines).length();
+	}
+
+	/** The state machine that keeps the codes down to the ones that change something. */
+	public static final class Writer {
+		private final StringBuilder out = new StringBuilder();
+		private int color = -1;
+		private boolean bold;
+		private boolean italic;
+		private boolean underlined;
+		private boolean strikethrough;
+		private boolean obfuscated;
+
+		/**
+		 * Writes text, never a bare section sign.
+		 *
+		 * <p>One that reached the page would be read as the start of a code and would swallow the
+		 * character after it – which is how a page loses a line break and a book comes back looking
+		 * like a different book. The editor refuses to type one, but a document read from an older
+		 * draft or imported from a file can still be carrying one, and this is the last place to
+		 * catch it.
+		 */
+		public void raw(String text) {
+			if (text.indexOf(SECTION) < 0) {
+				out.append(text);
+				return;
+			}
+			for (int i = 0; i < text.length(); i++) {
+				char c = text.charAt(i);
+				if (c != SECTION) {
+					out.append(c);
+				}
+			}
+		}
+
+		public void newLine() {
+			out.append('\n');
+		}
+
+		/**
+		 * Moves the active formatting to this style, writing as little as will do it.
+		 *
+		 * <h2>Why there is no {@code §r} here</h2>
+		 *
+		 * <p>Because {@code §r} does not mean "plain". It means "back to the style this piece of
+		 * text started in", and once a page has been wrapped that is not plain at all:
+		 * {@code TextHandler.collectLine} hands the rest of the page on carrying whatever style was
+		 * in force at the line break, and {@code Language.reorder} then renders that remainder with
+		 * its reset style set to the very same thing. So a {@code §r} at the start of the line after
+		 * a horizontal rule put the underline and the bold back rather than taking them off.
+		 *
+		 * <p>Worse, it only did so when drawing. The measuring pass resets to nothing, so the widths
+		 * were right while the picture was wrong, which is why the editor and the book disagreed
+		 * without either of them being able to notice.
+		 *
+		 * <p>A colour code has no such problem: it sets the style outright, switches and all. Black
+		 * is what a book is written in anyway, so turning formatting off costs exactly what
+		 * {@code §r} used to and always means it.
+		 */
+		public void style(QuillStyle target) {
+			int index = target.legacyColorIndex();
+			// No colour of its own means the ink the book is written in, and that is black.
+			int want = index < 0 ? 0 : index;
+			boolean removing = bold && !target.bold()
+					|| italic && !target.italic()
+					|| underlined && !target.underlined()
+					|| strikethrough && !target.strikethrough()
+					|| obfuscated && !target.obfuscated();
+			// Nothing has been written yet and nothing is wanted: a page of plain text starts with
+			// no codes at all, as it always did.
+			boolean untouched = color == -1 && want == 0;
+
+			if (removing || (want != color && !untouched)) {
+				code(COLOR_CODES[want]);
+				clearSwitches();
+				color = want;
+			}
+
+			if (target.bold() && !bold) {
+				code('l');
+				bold = true;
+			}
+			if (target.strikethrough() && !strikethrough) {
+				code('m');
+				strikethrough = true;
+			}
+			if (target.underlined() && !underlined) {
+				code('n');
+				underlined = true;
+			}
+			if (target.italic() && !italic) {
+				code('o');
+				italic = true;
+			}
+			if (target.obfuscated() && !obfuscated) {
+				code('k');
+				obfuscated = true;
+			}
+		}
+
+		/**
+		 * A run of blanks, some of them bold so the run lands on the pixel it was asked for.
+		 *
+		 * <p>The plain ones go first: that way {@code §l} is written once, at the end, and whatever
+		 * follows has to turn bold off anyway.
+		 */
+		public void spaces(QuillStyle base, int count, int boldCount) {
+			int plain = Math.max(0, count - boldCount);
+			QuillStyle flat = base.withObfuscated(false).withBold(false);
+			if (plain > 0) {
+				style(flat);
+				out.append(" ".repeat(plain));
+			}
+			if (boldCount > 0) {
+				style(flat.withBold(true));
+				out.append(" ".repeat(boldCount));
+			}
+		}
+
+		private void clearSwitches() {
+			bold = false;
+			italic = false;
+			underlined = false;
+			strikethrough = false;
+			obfuscated = false;
+		}
+
+		private void code(char c) {
+			out.append(SECTION).append(c);
+		}
+
+		public int length() {
+			return out.length();
+		}
+
+		@Override
+		public String toString() {
+			return out.toString();
+		}
+	}
+
+	// ---- reading --------------------------------------------------------------------------------
+
+	/**
+	 * A page written by anything – this mod, Stendhal, a datapack, a player typing codes by hand –
+	 * read back into paragraphs.
+	 *
+	 * <p>Every line break becomes a paragraph, because that is all a string of text can tell us: the
+	 * difference between a paragraph and a line the book happened to wrap was lost the moment the
+	 * page was written. Where a run of leading spaces looks like an alignment, it is read as one,
+	 * so that a centred title comes back centred rather than as a heap of blanks the player has to
+	 * count.
+	 */
+	public static List<Paragraph> decode(String page) {
+		List<Paragraph> paragraphs = new ArrayList<>();
+		StringBuilder text = new StringBuilder();
+		List<QuillStyle> styles = new ArrayList<>();
+		QuillStyle style = QuillStyle.PLAIN;
+
+		// Read exactly the way TextVisitFactory.visitFormatted reads, because that is what the book
+		// renderer uses and anything else is a different book. Two things fall out of that and both
+		// of them matter:
+		//
+		//   · a section sign always swallows the character after it, valid code or not – so a page
+		//     ending a line with a stray §, which is easily done by hand and which Stendhal leaves
+		//     behind, has its line break eaten and runs on into the next line. Splitting on newlines
+		//     first and reading the codes afterwards gets a page with one line too many, warns that
+		//     it will not fit, and is wrong about where every word goes.
+		//   · formatting carries across a line break. The vanilla editor's text box resets at every
+		//     one, which is why a book can look different there than it does when it is read; the
+		//     reader is the one to agree with.
+		for (int i = 0; i < page.length(); i++) {
+			char c = page.charAt(i);
+			if (c == SECTION) {
+				if (i + 1 >= page.length()) {
+					break;
+				}
+				style = applyCode(style, Character.toLowerCase(page.charAt(i + 1)));
+				i++;
+				continue;
+			}
+			if (c == '\n') {
+				paragraphs.add(finishLine(text, styles));
+				continue;
+			}
+			text.append(c);
+			styles.add(style);
+		}
+		paragraphs.add(finishLine(text, styles));
+		restoreLists(paragraphs);
+		return paragraphs;
+	}
+
+	/**
+	 * Reads a list back out of the marks it left on the page.
+	 *
+	 * <p>A list is a property of a paragraph, and a page is a string: by the time a book has been
+	 * written and opened again, all that is left of a list is the bullets and numbers standing in
+	 * the text. They still look right, but they are no longer a list – pressing return at the end of
+	 * an item starts an ordinary line, which is what this is here to stop.
+	 *
+	 * <p>Read carefully, and deliberately not at all in the doubtful cases. A bullet is unambiguous:
+	 * nobody types one except to make a list. A row of numbers is taken only when it starts at one
+	 * and counts up without a gap, so that reading it and writing it back cannot renumber anything.
+	 * A dash is never taken, however much it looks like a list – in Russian a line opening with a
+	 * dash is almost always speech, and turning every line of dialogue into a bulleted list would be
+	 * a far worse bug than the one being fixed.
+	 */
+	public static void restoreLists(List<Paragraph> paragraphs) {
+		for (Paragraph paragraph : paragraphs) {
+			if (paragraph.text().startsWith(ListStyle.BULLET.marker(1).trim())
+					&& !ListStyle.BULLET.marker(1).trim().isEmpty()) {
+				strip(paragraph, ListStyle.BULLET.marker(1).trim().length(), ListStyle.BULLET);
+			}
+		}
+
+		joinWrappedItems(paragraphs);
+
+		int start = -1;
+		int expected = 1;
+		for (int i = 0; i <= paragraphs.size(); i++) {
+			int marker = i < paragraphs.size() ? numberedMarker(paragraphs.get(i), expected) : -1;
+			if (marker > 0) {
+				if (start < 0) {
+					start = i;
+				}
+				expected++;
+				continue;
+			}
+			// A run has ended. One numbered line on its own is a sentence that happens to begin with
+			// a figure far more often than it is a list of one.
+			if (start >= 0 && i - start >= 2) {
+				int ordinal = 1;
+				for (int j = start; j < i; j++) {
+					strip(paragraphs.get(j), numberedMarker(paragraphs.get(j), ordinal++), ListStyle.NUMBER);
+				}
+			}
+			start = -1;
+			expected = 1;
+		}
+	}
+
+	/**
+	 * Puts a list item that ran over two lines back together.
+	 *
+	 * <p>A written page has a line break at the end of every line, wrapped or not, so an item too
+	 * long for one line comes back as an item and then a stray indented line. It looks right and
+	 * behaves wrongly: pressing return at the end of that second line starts an ordinary paragraph,
+	 * because that is what the second line now is.
+	 *
+	 * <p>Only where the first line was genuinely full. The next word not fitting on it is what makes
+	 * a break a wrap rather than a return somebody pressed, and joining lines that were meant to be
+	 * apart would be a worse fault than the one being mended.
+	 */
+	private static void joinWrappedItems(List<Paragraph> paragraphs) {
+		for (int i = 0; i < paragraphs.size() - 1; i++) {
+			Paragraph item = paragraphs.get(i);
+			if (item.list() == ListStyle.NONE || item.isEmpty()) {
+				continue;
+			}
+			float hang = Layout.hangingIndentOf(item.list().marker(1));
+			while (i + 1 < paragraphs.size() && continues(item, paragraphs.get(i + 1), hang)) {
+				Paragraph tail = paragraphs.remove(i + 1);
+				item.insert(item.length(), " ", item.styleAt(item.length() - 1));
+				item.append(tail);
+			}
+		}
+	}
+
+	/** Whether this paragraph is the rest of the item above it rather than a paragraph of its own. */
+	private static boolean continues(Paragraph item, Paragraph next, float hang) {
+		if (next.isEmpty() || next.list() != ListStyle.NONE
+				|| next.alignment() != item.alignment() || next.indent() == 0) {
+			return false;
+		}
+		// The indent it came back with has to be the room the marker took, not an indent somebody
+		// asked for: a quotation set under a bullet is not part of the bullet.
+		float indent = next.indent() * Layout.INDENT_SPACES * Widths.space();
+		if (Math.abs(indent - hang) > Widths.space()) {
+			return false;
+		}
+		String word = next.text().split("\\s+", 2)[0];
+		float used = Widths.widthOf(item.text(), item.styleAt(0).bold());
+		float wanted = used + Widths.advance(' ', false) + Widths.widthOf(word, next.styleAt(0).bold());
+		return wanted > Layout.PAGE_WIDTH - hang;
+	}
+
+	/** How many characters the marker takes if this paragraph opens with exactly this number. */
+	private static int numberedMarker(Paragraph paragraph, int ordinal) {
+		String wanted = ListStyle.NUMBER.marker(ordinal).trim();
+		return paragraph.text().startsWith(wanted) ? wanted.length() : -1;
+	}
+
+	/** Takes the marker and the blanks behind it off the front, and makes the paragraph a list item. */
+	private static void strip(Paragraph paragraph, int markerLength, ListStyle style) {
+		if (markerLength <= 0) {
+			return;
+		}
+		int end = markerLength;
+		while (end < paragraph.length() && paragraph.charAt(end) == ' ') {
+			end++;
+		}
+		if (end >= paragraph.length()) {
+			// Nothing but the marker: leave it alone rather than turn it into an empty list item.
+			return;
+		}
+		paragraph.delete(0, end);
+		paragraph.setList(style);
+	}
+
+	/** Turns the characters gathered so far into a paragraph and empties the buffers. */
+	private static Paragraph finishLine(StringBuilder text, List<QuillStyle> styles) {
+		Paragraph paragraph = buildLine(text.toString(), styles);
+		text.setLength(0);
+		styles.clear();
+		return paragraph;
+	}
+
+	private static Paragraph buildLine(String raw, List<QuillStyle> runStyles) {
+		StringBuilder text = new StringBuilder(raw);
+		List<QuillStyle> styles = new ArrayList<>(runStyles);
+
+		// The leading blanks were an alignment before they were spaces.
+		int lead = 0;
+		while (lead < text.length() && text.charAt(lead) == ' ') {
+			lead++;
+		}
+		float padWidth = 0.0f;
+		for (int i = 0; i < lead; i++) {
+			padWidth += Widths.advance(' ', styles.get(i).bold());
+		}
+		float bodyWidth = 0.0f;
+		for (int i = lead; i < text.length(); i++) {
+			bodyWidth += Widths.advance(text.charAt(i), styles.get(i).bold());
+		}
+
+		Paragraph paragraph = new Paragraph();
+		String body = text.substring(lead);
+		paragraph.insert(0, body, styles.subList(lead, styles.size()));
+		if (lead > 0) {
+			float slack = Layout.PAGE_WIDTH - bodyWidth;
+			if (slack > 0.0f && Math.abs(padWidth - slack / 2.0f) <= 2.5f) {
+				paragraph.setAlignment(Alignment.CENTER);
+			} else if (slack > 0.0f && Math.abs(padWidth - slack) <= 2.5f) {
+				paragraph.setAlignment(Alignment.RIGHT);
+			} else {
+				paragraph.setIndent(Math.round(padWidth / (2.0f * Math.max(1.0f, Widths.space()))));
+			}
+		}
+		return paragraph;
+	}
+
+	private static QuillStyle applyCode(QuillStyle style, char code) {
+		for (int i = 0; i < COLOR_CODES.length; i++) {
+			if (COLOR_CODES[i] == code) {
+				Integer value = QuillStyle.LEGACY_COLORS[i].getColorValue();
+				return QuillStyle.PLAIN.withColor(value == null ? QuillStyle.INHERIT : value);
+			}
+		}
+		return switch (code) {
+			case 'l' -> style.withBold(true);
+			case 'm' -> style.withStrikethrough(true);
+			case 'n' -> style.withUnderlined(true);
+			case 'o' -> style.withItalic(true);
+			case 'k' -> style.withObfuscated(true);
+			case 'r' -> QuillStyle.PLAIN;
+			default -> style;
+		};
+	}
+
+	/** Strips every code, for counting words or searching. */
+	public static String strip(String page) {
+		StringBuilder out = new StringBuilder(page.length());
+		for (int i = 0; i < page.length(); i++) {
+			char c = page.charAt(i);
+			if (c == SECTION && i + 1 < page.length()) {
+				i++;
+				continue;
+			}
+			out.append(c);
+		}
+		return out.toString();
+	}
+}

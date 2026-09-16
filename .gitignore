@@ -1,0 +1,26 @@
+# gradle
+.gradle/
+build/
+out/
+classes/
+
+# eclipse / idea / vscode
+*.launch
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.classpath
+.project
+
+# macos
+*.DS_Store
+
+# fabric
+run/
+
+# logs from the dev client
+logs/
+*.log

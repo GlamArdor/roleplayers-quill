@@ -1,0 +1,19 @@
+{
+	"required": true,
+	"minVersion": "0.8",
+	"package": "com.glamardor.roleplayersquill.mixin",
+	"compatibilityLevel": "JAVA_21",
+	"injectors": {
+		"defaultRequire": 1
+	},
+	"client": [
+		"AnvilScreenMixin",
+		"BookScreenContentsMixin",
+		"ChatScreenMixin",
+		"ClientPlayerEntityMixin",
+		"ScreenMixin",
+		"SignEditScreenMixin",
+		"TextRendererAccessor"
+	],
+	"mixins": []
+}

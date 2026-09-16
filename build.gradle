@@ -1,0 +1,138 @@
+plugins {
+	id 'fabric-loom' version "${loom_version}"
+}
+
+version = "${project.mod_version}+1.21.6-1.21.8"
+group = project.maven_group
+
+base {
+	archivesName = project.archives_base_name
+}
+
+repositories {
+	maven {
+		name = 'Terraformers'
+		url = 'https://maven.terraformersmc.com/'
+	}
+	maven {
+		name = 'Shedaniel'
+		url = 'https://maven.shedaniel.me/'
+	}
+}
+
+dependencies {
+	minecraft "com.mojang:minecraft:${project.minecraft_version}"
+	mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
+	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+
+	// sherpa-onnx publishes its engine and its models as bzip2 tarballs, and Java
+	// reads neither format on its own. 600 KB, which is the whole of what the
+	// voice typing feature costs anybody who never turns it on.
+	implementation "org.apache.commons:commons-compress:${project.commons_compress_version}"
+	include "org.apache.commons:commons-compress:${project.commons_compress_version}"
+
+	modCompileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
+	modLocalRuntime "com.terraformersmc:modmenu:${project.modmenu_version}"
+
+	// Only ever touched from inside a try in the screen factory, so the jar runs
+	// perfectly well without it – and against whatever Cloth the player has.
+	modCompileOnly("me.shedaniel.cloth:cloth-config-fabric:${project.cloth_config_version}") {
+		exclude(group: "net.fabricmc.fabric-api")
+	}
+	// -PnoCloth leaves Cloth out of the dev client, which is the only way to see
+	// the built-in screen: Cloth rides along inside other mods as a nested jar.
+	if (!project.hasProperty("noCloth")) {
+		modLocalRuntime("me.shedaniel.cloth:cloth-config-fabric:${project.cloth_config_version}") {
+			exclude(group: "net.fabricmc.fabric-api")
+		}
+	}
+}
+
+processResources {
+	inputs.property "version", project.version
+	inputs.property "minecraft_range", project.minecraft_range
+
+	filesMatching("fabric.mod.json") {
+		expand "version": project.version, "minecraft_range": project.minecraft_range
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	it.options.release = 21
+	it.options.encoding = 'UTF-8'
+}
+
+java {
+	withSourcesJar()
+	sourceCompatibility = JavaVersion.VERSION_21
+	targetCompatibility = JavaVersion.VERSION_21
+}
+
+// ── The checks in tools/ ─────────────────────────────────────────────────────
+//
+// tools/LayoutCheck.java measures what the encoder writes against a font whose
+// widths are known, which is the only way to test the pixel arithmetic without a
+// window and a world. It is an ordinary single-file program and needs the mod's
+// own classes and Minecraft's on the path; this task prints that path.
+//
+//   ./gradlew -q toolsClasspath
+//   java -cp "build/classes/java/main;<what that printed>" tools/LayoutCheck.java
+
+// The intermediary mappings of every version in the declared range, which is what CompatCheck
+// checks the built jar against. Fetched rather than vendored: they are Fabric's files and they
+// never change once published.
+tasks.register('fetchMappings') {
+	description = 'Downloads the intermediary mappings for every version in minecraft_range'
+	def versions = ['1.21.6', '1.21.7', '1.21.8']
+	def target = layout.buildDirectory.dir('mappings')
+	outputs.dir(target)
+	doLast {
+		def dir = target.get().asFile
+		dir.mkdirs()
+		versions.each { version ->
+			// Named after the version alone: CompatCheck reads the version out of the file name.
+			def file = new File(dir, "${version}.jar")
+			if (file.exists()) {
+				return
+			}
+			def url = "https://maven.fabricmc.net/net/fabricmc/intermediary/${version}/intermediary-${version}-v2.jar"
+			logger.lifecycle("Fetching ${url}")
+			file.withOutputStream { out -> new URL(url).withInputStream { input -> out << input } }
+		}
+	}
+}
+
+tasks.register('compatCheck', JavaExec) {
+	group = 'verification'
+	description = 'Asks every version in the range whether it has everything the built jar names'
+	dependsOn tasks.named('remapJar'), tasks.named('fetchMappings')
+	classpath = files()
+	mainClass = 'tools/CompatCheck.java'
+	doFirst {
+		mainClass = file('tools/CompatCheck.java').absolutePath
+		args tasks.named('remapJar').get().archiveFile.get().asFile.absolutePath,
+				layout.buildDirectory.dir('mappings').get().asFile.absolutePath
+	}
+}
+
+tasks.register('toolsClasspath') {
+	description = 'Prints the class path the programs in tools/ need'
+	dependsOn tasks.named('classes')
+	doLast {
+		println sourceSets.main.runtimeClasspath.asPath
+	}
+}
+
+tasks.register('layoutCheck', JavaExec) {
+	group = 'verification'
+	description = 'Checks the layout arithmetic against a known font, with no game running'
+	dependsOn tasks.named('classes')
+	classpath = sourceSets.main.runtimeClasspath
+	mainClass = 'tools/LayoutCheck.java'
+	jvmArgs '-Dfile.encoding=UTF-8', '-Dstdout.encoding=UTF-8', '-Dstderr.encoding=UTF-8'
+	// A single-file source program: the launcher takes the path where a class name would go.
+	doFirst {
+		mainClass = file('tools/LayoutCheck.java').absolutePath
+	}
+}

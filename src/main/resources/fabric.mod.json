@@ -1,0 +1,42 @@
+{
+	"schemaVersion": 1,
+	"id": "roleplayersquill",
+	"version": "${version}",
+	"name": "Roleplayer's Quill",
+	"description": "A book editor for people who write in Minecraft. Select a passage and set it bold, coloured, underlined, or aligned left, centre, right or justified – laid out to the pixel with the game's own spaces, so the finished book reads the same for everyone, with no mod and no resource pack. Paste a chapter in and it flows across as many pages as it needs, hyphenated by the rules of Russian or English if you want the lines full. Lists, tables, a character browser, a format brush, import and export to a file, and voice typing that runs offline on your own machine. Replaces the sign, anvil and chat editors too. Client side only.",
+	"authors": [
+		"Glam_Ardor"
+	],
+	"contact": {
+		"homepage": "https://codeberg.org/Glam_Ardor/roleplayers-quill",
+		"sources": "https://codeberg.org/Glam_Ardor/roleplayers-quill",
+		"issues": "https://codeberg.org/Glam_Ardor/roleplayers-quill/issues"
+	},
+	"license": "LGPL-3.0-or-later",
+	"icon": "assets/roleplayersquill/icon.png",
+	"environment": "client",
+	"entrypoints": {
+		"client": [
+			"com.glamardor.roleplayersquill.RoleplayersQuillClient"
+		],
+		"modmenu": [
+			"com.glamardor.roleplayersquill.gui.ModMenuIntegration"
+		]
+	},
+	"mixins": [
+		{
+			"config": "roleplayersquill.mixins.json",
+			"environment": "client"
+		}
+	],
+	"depends": {
+		"fabricloader": ">=0.16.0",
+		"fabric-api": "*",
+		"minecraft": "${minecraft_range}",
+		"java": ">=21"
+	},
+	"suggests": {
+		"cloth-config": "*",
+		"modmenu": "*"
+	}
+}
