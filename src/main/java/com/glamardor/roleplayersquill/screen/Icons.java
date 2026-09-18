@@ -200,6 +200,30 @@ public final class Icons {
 	};
 
 	/**
+	 * A clock face with a hand, for the book as it stood on earlier days.
+	 *
+	 * <p>A ring drawn as four straight sides with the corners taken off, which at eleven pixels
+	 * across is what a circle is, and two strokes from the middle for the hands.
+	 */
+	public static final Icon HISTORY = (context, x, y, color) -> {
+		context.fill(x + 5, y + 2, x + 11, y + 3, color);
+		context.fill(x + 5, y + 13, x + 11, y + 14, color);
+		context.fill(x + 2, y + 5, x + 3, y + 11, color);
+		context.fill(x + 13, y + 5, x + 14, y + 11, color);
+		context.fill(x + 4, y + 3, x + 5, y + 4, color);
+		context.fill(x + 3, y + 4, x + 4, y + 5, color);
+		context.fill(x + 11, y + 3, x + 12, y + 4, color);
+		context.fill(x + 12, y + 4, x + 13, y + 5, color);
+		context.fill(x + 3, y + 11, x + 4, y + 12, color);
+		context.fill(x + 4, y + 12, x + 5, y + 13, color);
+		context.fill(x + 12, y + 11, x + 13, y + 12, color);
+		context.fill(x + 11, y + 12, x + 12, y + 13, color);
+		// The hands: one to the middle of the top, one out to the right.
+		context.fill(x + 7, y + 5, x + 8, y + 9, color);
+		context.fill(x + 7, y + 8, x + 11, y + 9, color);
+	};
+
+	/**
 	 * An arrow into a tray, and one out of it.
 	 *
 	 * <p>Drawn out rather than through the up and down helpers below: those build the head the

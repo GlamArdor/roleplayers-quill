@@ -75,7 +75,23 @@ public class PagesScreen extends DialogScreen {
 		editor.document().mark();
 		editor.document().movePage(chosen, to);
 		chosen = to;
+		reveal();
 		editor.touch();
+	}
+
+	/**
+	 * Brings the chosen page back into the seven rows on show.
+	 *
+	 * <p>Walking a page down the book moved the highlight and not the list, so past the seventh row
+	 * the page being moved was somewhere below the window and the list sat still.
+	 */
+	private void reveal() {
+		if (chosen < scroll) {
+			scroll = chosen;
+		} else if (chosen >= scroll + VISIBLE) {
+			scroll = chosen - VISIBLE + 1;
+		}
+		scroll = MathHelper.clamp(scroll, 0, Math.max(0, editor.document().pageCount() - VISIBLE));
 	}
 
 	@Override

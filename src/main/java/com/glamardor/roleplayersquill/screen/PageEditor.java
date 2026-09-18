@@ -770,7 +770,6 @@ public final class PageEditor {
 		changed = true;
 	}
 
-	/** An empty page directly after this one, pushing everything after it along. */
 	/**
 	 * An empty page where this one is, pushing this one and everything after it along.
 	 *
@@ -778,6 +777,10 @@ public final class PageEditor {
 	 * you are looking at the page you want to write something before. A page added after the one you
 	 * are on is a page you then have to turn to, and one you cannot use to put a title in front of a
 	 * chapter at all.
+	 *
+	 * <p>Only the button. Turning past the end of the book and asking for a new page while writing
+	 * are the opposite movement and have their own – see {@link #newPageAfter()}. Sharing this one
+	 * with them left the writer looking at a blank page with their own text moved on to the next.
 	 */
 	public void addPage() {
 		if (!document.canAddPage()) {
@@ -786,6 +789,22 @@ public final class PageEditor {
 		document.mark();
 		document.insertPage(page, QuillDocument.newPage());
 		setPage(page);
+		changed = true;
+	}
+
+	/**
+	 * An empty page after this one, with the caret on it.
+	 *
+	 * <p>What asking for a new page while writing means: the page being written stays where it is
+	 * and the writing carries on overleaf.
+	 */
+	public void newPageAfter() {
+		if (!document.canAddPage()) {
+			return;
+		}
+		document.mark();
+		document.insertPage(page + 1, QuillDocument.newPage());
+		setPage(page + 1);
 		changed = true;
 	}
 
@@ -941,6 +960,48 @@ public final class PageEditor {
 		invalidate();
 	}
 
+	/**
+	 * The paragraphs the selection covers, or the one the caret is in when nothing is selected.
+	 *
+	 * <p>What a set of formatting is kept from: a signature is three lines somebody has already set
+	 * out, and pointing at them is how you say which three.
+	 */
+	public List<Paragraph> paragraphsForSet() {
+		List<Paragraph> selected = selectedParagraphs();
+		return selected.isEmpty() ? List.of(currentPage().get(paragraph).copy()) : selected;
+	}
+
+	/**
+	 * Drops a few ready-made paragraphs in where the caret is.
+	 *
+	 * <p>What a set of formatting is for: a signature, a dateline, the three lines a decree opens
+	 * with. Unlike a template it is not a page – it goes into the page being written, after the
+	 * paragraph the caret is standing in, and the caret follows it so the writing carries on below.
+	 */
+	public void insertSet(List<Paragraph> set) {
+		if (set.isEmpty()) {
+			return;
+		}
+		document.mark();
+		deleteSelectionQuietly();
+		List<Paragraph> current = currentPage();
+		int at = paragraph;
+		// After the paragraph the caret is in, unless that paragraph is empty – an empty line is
+		// where somebody meant the thing to go, not something to be pushed down by it.
+		if (!current.get(at).isEmpty()) {
+			at++;
+		} else {
+			current.remove(at);
+		}
+		for (int i = 0; i < set.size(); i++) {
+			current.add(Math.min(at + i, current.size()), set.get(i).copy());
+		}
+		int last = Math.min(at + set.size() - 1, current.size() - 1);
+		setCaret(last, current.get(last).length(), false);
+		changed = true;
+		invalidate();
+	}
+
 	/** A ready-made page directly after this one, and the caret moves onto it. */
 	public void insertPageAfter(List<Paragraph> page) {
 		if (!document.canAddPage()) {
@@ -1068,6 +1129,31 @@ public final class PageEditor {
 	}
 
 	/**
+	 * The first page of the book that will not survive being written out, or -1 if none will not.
+	 *
+	 * <p>The warning under the page only ever speaks for the page being looked at, and a book is
+	 * signed from whichever page the writer happened to stop on. A page that has outgrown its room
+	 * three chapters back is one the server either refuses outright – a page over the character
+	 * limit fails the component's own check and the whole edit is thrown away – or accepts and draws
+	 * short, which is the reader losing the bottom of a page and nobody being told. Neither is
+	 * something to find out about after signing.
+	 *
+	 * <p>Pages nobody edited are not measured. They arrived from the server, which means the server
+	 * already took them, and they are going back out as the very strings they came in as.
+	 */
+	public int firstPageThatOverflows() {
+		List<List<Paragraph>> pages = document.pages();
+		for (int i = 0; i < pages.size(); i++) {
+			String going = pageString(pages.get(i));
+			if (going.length() > QuillDocument.MAX_PAGE_CHARS
+					|| LegacyCodec.editorLines(going) > Layout.PAGE_LINES) {
+				return i;
+			}
+		}
+		return -1;
+	}
+
+	/**
 	 * How many lines the page really uses, not counting blank ones trailing off the end.
 	 *
 	 * <p>A page that ends in an empty paragraph is not a page that has run out of room: nothing is
@@ -1075,7 +1161,10 @@ public final class PageEditor {
 	 * overflows and a page that does.
 	 */
 	public int contentLines() {
-		List<Layout.LaidLine> laid = lines();
+		return contentLines(lines());
+	}
+
+	private static int contentLines(List<Layout.LaidLine> laid) {
 		int last = laid.size();
 		while (last > 0) {
 			Layout.LaidLine line = laid.get(last - 1);
@@ -1251,13 +1340,37 @@ public final class PageEditor {
 
 	// ---- writing the book out ------------------------------------------------------------------------------
 
-	/** Every page as the string a server will take. */
+	/**
+	 * Every page as the string a server will take.
+	 *
+	 * <p>A page still holding exactly what it was opened holding goes back out as the string it came
+	 * in as. Only a page somebody edited is laid out and written again: re-typesetting the rest would
+	 * quietly rewrite a book this mod did not write, which for a book lent by somebody else is their
+	 * text coming back changed.
+	 */
 	public List<String> encodePages() {
 		List<String> out = new ArrayList<>(document.pageCount());
 		for (List<Paragraph> current : document.pages()) {
-			out.add(LegacyCodec.encode(current, Layout.lay(current, config.layoutOptions())));
+			out.add(pageString(current));
 		}
 		return out;
+	}
+
+	/**
+	 * The string one page will go out as.
+	 *
+	 * <p>The one it came in as, where it came in as one and nobody has touched it. The exception is
+	 * a page that does not fit the vanilla editor as it stands: leaving that alone would be leaving
+	 * it broken for every reader without this mod, for the sake of not touching what this mod itself
+	 * wrote badly. Laying it out again is what mends it, and it is the only thing that mends it
+	 * without the writer retyping the book.
+	 */
+	private String pageString(List<Paragraph> current) {
+		String received = document.sourceOf(current);
+		if (received != null && LegacyCodec.fitsTheVanillaEditor(received)) {
+			return received;
+		}
+		return LegacyCodec.encode(current, Layout.lay(current, config.layoutOptions()));
 	}
 
 	/** Every page as a component, for the creative road. */

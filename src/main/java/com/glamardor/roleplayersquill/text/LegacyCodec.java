@@ -50,13 +50,155 @@ public final class LegacyCodec {
 	 */
 	public static String encode(List<Paragraph> page, List<Layout.LaidLine> lines) {
 		Writer writer = new Writer();
-		for (int i = 0; i < lines.size(); i++) {
-			if (i > 0) {
+		int last = lines.size();
+		// Empty lines hanging off the end are not written. Nothing is drawn on them, so the reader
+		// never knew they were there – but the vanilla editor is a text box that counts lines rather
+		// than a page that draws them, and it is built with room for exactly fourteen. A page of
+		// fourteen lines followed by an empty one is fifteen lines to it: it grows a scrollbar, the
+		// text slides under itself, and that is what somebody without this mod opens the book to.
+		while (last > 0 && isBlank(lines.get(last - 1))) {
+			last--;
+		}
+		int at = 0;
+		boolean started = false;
+		while (at < last) {
+			// One paragraph at a time, because whether it needs line breaks written into it is a
+			// property of the paragraph and not of any one of its lines.
+			int index = lines.get(at).paragraph;
+			int after = at;
+			while (after < last && lines.get(after).paragraph == index) {
+				after++;
+			}
+			if (started) {
 				writer.newLine();
 			}
-			encodeLine(writer, page, lines.get(i));
+			started = true;
+
+			if (needsNoPixels(lines, at, after)) {
+				// Written the way somebody without this mod would have written it: straight through,
+				// with the break at the end of the paragraph and nowhere else, because the game wraps
+				// it at the same places this mod just laid it out at.
+				//
+				// A line break at the end of every line is this mod's signature, and things that read
+				// a page rather than draw it can see it. The server's torn-page plugin turns each one
+				// into a line of its own, so a page written here came out double spaced while the same
+				// page typed by anybody else came out right.
+				encodeStraight(writer, page.get(index), lines.get(at).start, lines.get(after - 1).contentEnd);
+			} else {
+				for (int i = at; i < after; i++) {
+					if (i > at) {
+						writer.newLine();
+					}
+					encodeLine(writer, page, lines.get(i));
+				}
+			}
+			at = after;
 		}
 		return writer.toString();
+	}
+
+	/**
+	 * Whether a paragraph is laid out the way the game would lay it out by itself.
+	 *
+	 * <p>Nothing pushed anywhere: no alignment, no indent, no marker, no frame, no leader, no gap
+	 * widened to reach the margin and no word broken with a hyphen. Such a paragraph needs no line
+	 * breaks written into it, and writing them anyway is the difference between a book that is
+	 * ordinary and a book that only looks ordinary.
+	 */
+	private static boolean needsNoPixels(List<Layout.LaidLine> lines, int from, int to) {
+		for (int i = from; i < to; i++) {
+			Layout.LaidLine line = lines.get(i);
+			if (!line.leftPad.isEmpty() || line.justified() || !line.marker.isEmpty()
+					|| line.frame.present() || line.leaderAt >= 0 || line.hyphen) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/** A paragraph written as one run of text, with its codes and without a break inside it. */
+	private static void encodeStraight(Writer writer, Paragraph paragraph, int from, int to) {
+		for (int i = from; i < to; i++) {
+			writer.style(paragraph.styleAt(i));
+			writer.raw(String.valueOf(paragraph.charAt(i)));
+		}
+	}
+
+	/** Whether this line puts nothing at all on the page. */
+	private static boolean isBlank(Layout.LaidLine line) {
+		return line.contentEnd <= line.start && line.marker.isEmpty() && !line.frame.present();
+	}
+
+	/**
+	 * How many lines the vanilla book editor makes of a page.
+	 *
+	 * <p>Not the same question as how many lines a reader sees. The reader gets a page that is drawn:
+	 * an empty line at the bottom draws nothing and costs nothing. Anybody opening an unsigned book
+	 * without this mod gets {@code BookEditScreen}, which is a text box built with room for exactly
+	 * fourteen lines – and a text box counts lines, empty or not. One line too many and it grows a
+	 * scrollbar and slides the text under itself.
+	 *
+	 * <p>Every explicit break is a line, and what lies between two of them is wrapped the way the
+	 * game wraps it: greedily, at the last blank that still fits.
+	 */
+	public static int editorLines(String page) {
+		int total = 0;
+		for (String segment : page.split("\n", -1)) {
+			total += wrappedLines(segment);
+		}
+		return total;
+	}
+
+	/** Whether a page as it stands can be opened without this mod and look the way it was meant to. */
+	public static boolean fitsTheVanillaEditor(String page) {
+		return editorLines(page) <= Layout.PAGE_LINES;
+	}
+
+	/**
+	 * One stretch between two explicit breaks, wrapped the way the game wraps it.
+	 *
+	 * <p>Transcribed from {@code TextHandler.LineBreakingVisitor}: a blank is noted as a place the
+	 * line may end <em>before</em> the width is tested, the width of every character including the
+	 * blank is counted, and a line that goes over ends at the last blank noted – or, if there was
+	 * none, at the character that went over.
+	 */
+	private static int wrappedLines(String segment) {
+		int lines = 1;
+		float total = 0.0f;
+		float beforeSpace = 0.0f;
+		float spaceWidth = 0.0f;
+		boolean haveSpace = false;
+		boolean nonEmpty = false;
+		boolean bold = false;
+		for (int i = 0; i < segment.length(); i++) {
+			char c = segment.charAt(i);
+			if (c == SECTION) {
+				if (i + 1 < segment.length()) {
+					bold = applyCode(QuillStyle.PLAIN.withBold(bold),
+							Character.toLowerCase(segment.charAt(i + 1))).bold();
+					i++;
+				}
+				continue;
+			}
+			float advance = Widths.advance(c, bold);
+			if (c == ' ') {
+				haveSpace = true;
+				beforeSpace = total;
+				spaceWidth = advance;
+			}
+			total += advance;
+			if (nonEmpty && total > Layout.PAGE_WIDTH) {
+				lines++;
+				// What is left over is whatever followed the blank the line ended at. With no blank
+				// to end at, the line ends at this character and this character starts the next one.
+				total = haveSpace ? total - beforeSpace - spaceWidth : advance;
+				haveSpace = false;
+				nonEmpty = total != 0.0f;
+				continue;
+			}
+			nonEmpty |= advance != 0.0f;
+		}
+		return lines;
 	}
 
 	private static void encodeLine(Writer writer, List<Paragraph> page, Layout.LaidLine line) {
@@ -459,18 +601,47 @@ public final class LegacyCodec {
 			bodyWidth += Widths.advance(text.charAt(i), styles.get(i).bold());
 		}
 
-		Paragraph paragraph = new Paragraph();
-		String body = text.substring(lead);
-		paragraph.insert(0, body, styles.subList(lead, styles.size()));
-		if (lead > 0) {
-			float slack = Layout.PAGE_WIDTH - bodyWidth;
-			if (slack > 0.0f && Math.abs(padWidth - slack / 2.0f) <= 2.5f) {
-				paragraph.setAlignment(Alignment.CENTER);
-			} else if (slack > 0.0f && Math.abs(padWidth - slack) <= 2.5f) {
-				paragraph.setAlignment(Alignment.RIGHT);
-			} else {
-				paragraph.setIndent(Math.round(padWidth / (2.0f * Math.max(1.0f, Widths.space()))));
+		// What the blanks are depends on whether the line they open ever had to wrap.
+		//
+		// On a page this mod wrote, every line stands on its own and the blanks in front of it are
+		// the alignment: reading them back as an alignment returns exactly what was meant. On a page
+		// written in the vanilla editor, a line that runs past the margin is one paragraph that the
+		// game breaks up as it draws it, and the blanks are a red line – they belong to the first
+		// line of it and to no other. Taking those for an indent indented every line of the
+		// paragraph, cost it eight pixels a line, and pushed the bottom of somebody else's page off
+		// the bottom of it with "did not fit" underneath.
+		//
+		// So an indent is read back only where it can be meant: off a line that fits as it stands,
+		// and only when the blanks come to a whole number of indent steps, which is what this mod
+		// writes and what a person typing spaces by hand almost never lands on. Everything else stays
+		// what it was – blanks, in the text, on the first line, exactly where the reader sees them.
+		float slack = Layout.PAGE_WIDTH - bodyWidth;
+		float step = Layout.INDENT_SPACES * Widths.space();
+		// Where the text begins once the blanks in front of it have been accounted for. Nowhere at
+		// all, unless they turn out to mean something: blanks that are not an alignment are text.
+		int cut = 0;
+		Alignment alignment = null;
+		int indent = 0;
+		if (lead > 0 && slack > 0.0f) {
+			if (Math.abs(padWidth - slack / 2.0f) <= 2.5f) {
+				alignment = Alignment.CENTER;
+				cut = lead;
+			} else if (Math.abs(padWidth - slack) <= 2.5f) {
+				alignment = Alignment.RIGHT;
+				cut = lead;
+			} else if (step > 0.0f && Math.abs(padWidth - Math.round(padWidth / step) * step) <= 0.5f) {
+				indent = Math.round(padWidth / step);
+				cut = lead;
 			}
+		}
+
+		Paragraph paragraph = new Paragraph();
+		paragraph.insert(0, text.substring(cut), styles.subList(cut, styles.size()));
+		if (alignment != null) {
+			paragraph.setAlignment(alignment);
+		}
+		if (indent > 0) {
+			paragraph.setIndent(indent);
 		}
 		return paragraph;
 	}

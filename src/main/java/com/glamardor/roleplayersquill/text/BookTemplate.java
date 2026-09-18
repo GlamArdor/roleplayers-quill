@@ -50,7 +50,10 @@ public enum BookTemplate {
 			// with a blank where the date goes is a template everybody fills in wrongly.
 			String line = Text.translatable(key() + ".line" + i).getString()
 					.replace("{date_of}", ServerDate.todayAfterPreposition())
-					.replace("{date}", ServerDate.today());
+					.replace("{date}", ServerDate.today())
+					// The name the server shows for this player, without the rank in brackets and
+					// without the colours: see TextSet.clean.
+					.replace("{name}", TextSet.writerName());
 			ParagraphStyle style = ParagraphStyle.NORMAL;
 			int bar = line.indexOf('|');
 			if (bar > 0) {

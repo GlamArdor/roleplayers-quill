@@ -72,6 +72,61 @@ public final class BookIO {
 		return FabricLoader.getInstance().getConfigDir().resolve(RoleplayersQuill.MOD_ID).resolve("templates");
 	}
 
+	/** Sets of formatting live beside the templates, in a folder of their own. */
+	private static Path setDir() {
+		return FabricLoader.getInstance().getConfigDir().resolve(RoleplayersQuill.MOD_ID).resolve("sets");
+	}
+
+	/**
+	 * A few paragraphs kept under a name, to be dropped into whatever is being written.
+	 *
+	 * <p>Kept exactly the way a template is – as a document with one page in it – so that a set
+	 * carries its alignment, its colours and its links along with its words.
+	 */
+	public static void saveSet(String name, List<Paragraph> paragraphs) {
+		QuillDocument document = new QuillDocument();
+		document.pages().clear();
+		document.pages().add(QuillDocument.copyPage(paragraphs));
+		try {
+			writeDocument(document, ensure(setDir()).resolve(fileNameOf(name) + ".json"));
+		} catch (IOException error) {
+			RoleplayersQuill.LOGGER.warn("Could not keep the set {}", name, error);
+		}
+	}
+
+	/** Every set kept this way, by name. */
+	public static java.util.LinkedHashMap<String, List<Paragraph>> sets() {
+		return readPages(setDir());
+	}
+
+	public static void deleteSet(String name) {
+		try {
+			Files.deleteIfExists(setDir().resolve(fileNameOf(name) + ".json"));
+		} catch (IOException error) {
+			RoleplayersQuill.LOGGER.warn("Could not remove the set {}", name, error);
+		}
+	}
+
+	private static java.util.LinkedHashMap<String, List<Paragraph>> readPages(Path dir) {
+		java.util.LinkedHashMap<String, List<Paragraph>> out = new java.util.LinkedHashMap<>();
+		if (!Files.isDirectory(dir)) {
+			return out;
+		}
+		try (var stream = Files.list(dir)) {
+			List<Path> files = new ArrayList<>(stream.filter(Files::isRegularFile).toList());
+			files.sort(java.util.Comparator.comparing(Path::getFileName));
+			for (Path file : files) {
+				QuillDocument document = readDocument(file);
+				if (document != null && !document.pages().isEmpty()) {
+					out.put(file.getFileName().toString().replaceFirst("\\.json$", ""), document.page(0));
+				}
+			}
+		} catch (IOException error) {
+			RoleplayersQuill.LOGGER.debug("Could not read {}", dir, error);
+		}
+		return out;
+	}
+
 	/**
 	 * A page kept to start other pages from, under a name of its own.
 	 *
@@ -290,7 +345,7 @@ public final class BookIO {
 			}
 			return hex.toString();
 		} catch (NoSuchAlgorithmException error) {
-			return Integer.toHexString(String.join(" ", pages).hashCode());
+			return Integer.toHexString(String.join(" ", pages).hashCode());
 		}
 	}
 
@@ -375,6 +430,171 @@ public final class BookIO {
 	}
 
 	/** Keeps the last few hundred and lets the rest go: a draft is a convenience, not an archive. */
+	// ---- the versions of a book -------------------------------------------------------------------
+
+	/** One book as it stood at one moment: where it is kept, when it was, and how big it was. */
+	public record Version(Path file, long when, int pages, String title) {
+	}
+
+	private static Path historyDir(String id) {
+		return ensure(FabricLoader.getInstance().getConfigDir().resolve(RoleplayersQuill.MOD_ID)
+				.resolve("history").resolve(id.replaceAll("[^A-Za-z0-9-]", "")));
+	}
+
+	/**
+	 * Keeps the book as it stands, if it does not stand as it did last time.
+	 *
+	 * <p>Undo takes back what was done a minute ago. This is the other question – what the book said
+	 * yesterday, before the evening's rewriting – and the answer has to survive the editor being
+	 * closed, the history being spent and the book being written over twice since.
+	 *
+	 * <p>Only when the book is really written back, never while it is being typed: a version per
+	 * keystroke is not a history, it is a log. And only when something changed, so that pressing Done
+	 * twice does not fill the list with the same book.
+	 */
+	public static void keepVersion(QuillDocument document, List<String> encodedPages) {
+		String signature = String.join(" ", encodedPages);
+		List<Version> already = versions(document.id());
+		if (!already.isEmpty() && signature.equals(String.join(" ", writtenOf(already.get(0).file())))) {
+			return;
+		}
+
+		VersionDto dto = new VersionDto();
+		dto.when = System.currentTimeMillis();
+		dto.title = document.title();
+		dto.pages = pagesToDto(document.pages());
+		dto.written = new ArrayList<>(encodedPages);
+		Path file = historyDir(document.id()).resolve(dto.when + ".json");
+		try (Writer writer = Files.newBufferedWriter(file, StandardCharsets.UTF_8)) {
+			GSON.toJson(dto, writer);
+		} catch (IOException error) {
+			RoleplayersQuill.LOGGER.debug("Could not keep a version at {}", file, error);
+			return;
+		}
+		pruneVersions(document.id());
+	}
+
+	/** Every kept version of a book, newest first. */
+	public static List<Version> versions(String id) {
+		List<Version> out = new ArrayList<>();
+		Path dir = historyDir(id);
+		if (!Files.isDirectory(dir)) {
+			return out;
+		}
+		try (var stream = Files.list(dir)) {
+			for (Path file : stream.filter(Files::isRegularFile).toList()) {
+				VersionDto dto = read(file);
+				if (dto == null || dto.pages == null) {
+					continue;
+				}
+				out.add(new Version(file, dto.when, dto.pages.size(), dto.title == null ? "" : dto.title));
+			}
+		} catch (IOException error) {
+			RoleplayersQuill.LOGGER.debug("Could not read the versions of {}", id, error);
+		}
+		out.sort((a, b) -> Long.compare(b.when(), a.when()));
+		return out;
+	}
+
+	/** A kept version, as pages ready to be put back into a book. */
+	@Nullable
+	public static List<List<Paragraph>> readVersion(Path file) {
+		VersionDto dto = read(file);
+		return dto == null || dto.pages == null ? null : pagesFromDto(dto.pages);
+	}
+
+	/** What a kept version was written as, so that restoring it can be compared with what is held. */
+	public static List<String> writtenOf(Path file) {
+		VersionDto dto = read(file);
+		return dto == null || dto.written == null ? List.of() : dto.written;
+	}
+
+	@Nullable
+	private static VersionDto read(Path file) {
+		try (var reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
+			return GSON.fromJson(reader, VersionDto.class);
+		} catch (IOException | com.google.gson.JsonParseException error) {
+			return null;
+		}
+	}
+
+	private static void pruneVersions(String id) {
+		Path dir = historyDir(id);
+		try (var stream = Files.list(dir)) {
+			List<Path> files = new ArrayList<>(stream.filter(Files::isRegularFile).toList());
+			if (files.size() <= 20) {
+				return;
+			}
+			files.sort(java.util.Comparator.naturalOrder());
+			for (int i = 0; i < files.size() - 20; i++) {
+				Files.deleteIfExists(files.get(i));
+			}
+		} catch (IOException error) {
+			RoleplayersQuill.LOGGER.debug("Could not tidy the versions of {}", id, error);
+		}
+	}
+
+	static final class VersionDto {
+		long when;
+		String title;
+		List<List<ParagraphDto>> pages;
+		/** The book as it was sent, which is what tells one version from another. */
+		List<String> written;
+	}
+
+	/** One book kept on this computer, as it was last written. */
+	public record Kept(String name, QuillDocument document, long when) {
+	}
+
+	/**
+	 * Every book this computer remembers, newest first.
+	 *
+	 * <p>Drafts are kept for every book that has been opened, which makes them, between them, the
+	 * library: "the book where I wrote about the Flavian chapters" is a question about a hundred and
+	 * fifty files rather than about the one in hand. They are small, and there are at most a hundred
+	 * and fifty of them, so reading the lot is cheaper than being clever about it.
+	 */
+	public static List<Kept> allBooks() {
+		List<Kept> out = new ArrayList<>();
+		Path dir = draftDir();
+		if (!Files.isDirectory(dir)) {
+			return out;
+		}
+		try (var stream = Files.list(dir)) {
+			for (Path file : stream.filter(Files::isRegularFile).toList()) {
+				QuillDocument document = readDocument(file);
+				if (document == null || document.pageCount() == 0) {
+					continue;
+				}
+				long when;
+				try {
+					when = Files.getLastModifiedTime(file).toMillis();
+				} catch (IOException error) {
+					when = 0L;
+				}
+				out.add(new Kept(nameOf(document), document, when));
+			}
+		} catch (IOException error) {
+			RoleplayersQuill.LOGGER.debug("Could not read the drafts", error);
+		}
+		out.sort((a, b) -> Long.compare(b.when(), a.when()));
+		return out;
+	}
+
+	/** What to call a book in a list: its title, or the first thing written in it. */
+	public static String nameOf(QuillDocument document) {
+		if (!document.title().isBlank()) {
+			return document.title();
+		}
+		for (Paragraph paragraph : document.page(0)) {
+			if (!paragraph.text().isBlank()) {
+				String line = paragraph.text().strip();
+				return line.length() > 40 ? line.substring(0, 40) + "…" : line;
+			}
+		}
+		return "";
+	}
+
 	private static void pruneDrafts() {
 		Path dir = draftDir();
 		if (!Files.isDirectory(dir)) {
@@ -409,6 +629,7 @@ public final class BookIO {
 		DocumentDto dto = new DocumentDto();
 		dto.format = FORMAT;
 		dto.title = document.title();
+		dto.id = document.id();
 		dto.pages = pagesToDto(document.pages());
 		dto.history = new ArrayList<>();
 		for (QuillDocument.State state : document.history()) {
@@ -489,6 +710,7 @@ public final class BookIO {
 		QuillDocument document = new QuillDocument();
 		document.pages().clear();
 		document.setTitle(dto.title == null ? "" : dto.title);
+		document.setId(dto.id);
 		if (dto.pages == null || dto.pages.isEmpty()) {
 			document.pages().add(QuillDocument.newPage());
 			return document;
@@ -532,6 +754,8 @@ public final class BookIO {
 	static final class DocumentDto {
 		int format;
 		String title;
+		/** What the book is called between sessions; see QuillDocument.id. */
+		String id;
 		List<List<ParagraphDto>> pages;
 		/** The steps back, newest first, so that undo still works after the book has been shut. */
 		List<HistoryDto> history;

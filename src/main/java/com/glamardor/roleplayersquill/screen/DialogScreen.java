@@ -28,7 +28,16 @@ public abstract class DialogScreen extends Screen {
 	@Override
 	protected void init() {
 		panelX = (width - panelWidth) / 2;
-		panelY = (height - panelHeight) / 2;
+		panelY = panelTop();
+	}
+
+	/**
+	 * Where the panel's top edge goes. The middle of the screen, unless a dialog has a reason.
+	 *
+	 * <p>Searching a book has one: the panel would sit over the very page it is finding things on.
+	 */
+	protected int panelTop() {
+		return (height - panelHeight) / 2;
 	}
 
 	@Override

@@ -132,6 +132,12 @@ public class QuillEditScreen extends Screen {
 	@Nullable
 	private Text notice;
 	private long noticeUntil;
+	private boolean fontWarned;
+	/** The find strip under the book, when it is open. Null is closed. */
+	@Nullable
+	private FindBar findBar;
+	/** Where the row with Sign and Done sits, so other things can be put under it. */
+	private int buttonsY;
 
 	public QuillEditScreen(ItemStack stack, Hand hand, List<String> pages) {
 		super(Text.translatable("roleplayersquill.editor.title"));
@@ -152,6 +158,12 @@ public class QuillEditScreen extends Screen {
 					document.pages().add(LegacyCodec.decode(page));
 				}
 			}
+		}
+		// Read once more, whatever the document itself came from, purely to file each page under what
+		// it reads as. A page nobody edits is written back as this very string rather than as this
+		// mod's idea of it – see QuillDocument.rememberSource.
+		for (String page : pages) {
+			document.rememberSource(LegacyCodec.decode(page), page);
 		}
 		this.editor = new PageEditor(document);
 		this.draftKey = List.copyOf(pages);
@@ -195,6 +207,7 @@ public class QuillEditScreen extends Screen {
 	@Override
 	protected void init() {
 		Widths.clear();
+		warnAboutFont();
 		tools.clear();
 
 		List<List<IconButton>> groups = buildTools();
@@ -215,7 +228,11 @@ public class QuillEditScreen extends Screen {
 		bookY = toolbarHeight + 12;
 
 		int centre = width / 2;
-		int buttonsY = Math.min(height - 24 - stripHeight, (int) (bookY + BOOK_SIZE * scale) + 4);
+		// The offer to recover unsaved work and the find strip each stand on a row of their own under
+		// the two buttons, so room is kept for them here rather than dropped on top of them.
+		int offerRow = (recovery != null ? 22 : 0) + (findBar != null ? FindBar.height() + 8 : 0);
+		buttonsY = Math.min(height - 24 - stripHeight - offerRow,
+				(int) (bookY + BOOK_SIZE * scale) + 4);
 
 		if (symbolsOpen) {
 			if (symbolPanel == null) {
@@ -229,14 +246,15 @@ public class QuillEditScreen extends Screen {
 					Math.min(stripHeight, height - stripY - 2), this::addDrawableChild, textRenderer);
 			symbolPanel.reload();
 		}
+		// Two buttons, the same two the vanilla editor has. There was a third that showed the page as
+		// it would be read, and it was worth less than it cost: the page under the caret is already
+		// drawn the way the reader will see it, so the preview only ever repeated it – and a preview
+		// that repeats the editor is a second opinion from the same witness.
 		addDrawableChild(ButtonWidget.builder(Text.translatable("roleplayersquill.editor.sign"),
 						button -> client.setScreen(new SignBookScreen(this, editor, stack, hand)))
-				.dimensions(centre - 154, buttonsY, 100, 20).build());
-		addDrawableChild(ButtonWidget.builder(Text.translatable("roleplayersquill.editor.preview"),
-						button -> client.setScreen(new PreviewScreen(this, editor)))
-				.dimensions(centre - 50, buttonsY, 100, 20).build());
+				.dimensions(centre - 102, buttonsY, 100, 20).build());
 		addDrawableChild(ButtonWidget.builder(ScreenTexts.DONE, button -> saveAndClose())
-				.dimensions(centre + 54, buttonsY, 100, 20).build());
+				.dimensions(centre + 2, buttonsY, 100, 20).build());
 
 		if (recovery != null) {
 			int pages = recovery.pageCount();
@@ -251,11 +269,16 @@ public class QuillEditScreen extends Screen {
 						editor.touch();
 						recovery = null;
 						clearAndInit();
-					}).dimensions(width / 2 - 110, toolbarHeight + 2, 150, 18).build());
+					}).dimensions(centre - 102, buttonsY + 22, 150, 18).build());
 			addDrawableChild(ButtonWidget.builder(Text.translatable("roleplayersquill.recover.no"), button -> {
 				recovery = null;
 				clearAndInit();
-			}).dimensions(width / 2 + 44, toolbarHeight + 2, 66, 18).build());
+			}).dimensions(centre + 52, buttonsY + 22, 50, 18).build());
+		}
+
+		if (findBar != null) {
+			findBar.layout(centre, buttonsY + 22 + (recovery != null ? 22 : 0), width, textRenderer,
+					this::addDrawableChild);
 		}
 
 		// Last, so its box and its buttons are drawn over everything else.
@@ -379,7 +402,8 @@ public class QuillEditScreen extends Screen {
 				tool(Icons.PAGE_PASTE, "page_paste", this::pastePage).onlyWhen(QuillClipboard::hasPage),
 				tool(Icons.CLEAR, "page_clear", editor::clearCurrentPage),
 				tool(Icons.PAGE_REMOVE, "page_remove", editor::removePage),
-				tool(Icons.PAGES, "pages", () -> client.setScreen(new PagesScreen(this, editor)))));
+				tool(Icons.PAGES, "pages", () -> client.setScreen(new PagesScreen(this, editor))),
+				tool(Icons.HISTORY, "history", () -> client.setScreen(new HistoryScreen(this, editor)))));
 
 		groups.add(List.of(
 				tool(Icons.IMPORT, "import", this::importFile),
@@ -438,6 +462,29 @@ public class QuillEditScreen extends Screen {
 	private void openFind() {
 		closeColours();
 		client.setScreen(new FindScreen(this, editor));
+	}
+
+	/** The find strip, under the book. Pressing the key again puts the cursor back in the box. */
+	private void openFindBar() {
+		closeColours();
+		if (findBar == null) {
+			findBar = new FindBar(editor, this::openFind, this::closeFindBar);
+			clearAndInit();
+		}
+		if (findBar.box() != null) {
+			setFocused(findBar.box());
+			findBar.box().setFocused(true);
+		}
+	}
+
+	private void closeFindBar() {
+		findBar = null;
+		clearAndInit();
+	}
+
+	/** Where the row of buttons ends, so a dialog can stand under the book instead of over it. */
+	public int belowButtons() {
+		return buttonsY + 20 + (recovery != null ? 22 : 0) + (findBar != null ? FindBar.height() + 6 : 0);
 	}
 
 	private IconButton tool(Icons.Icon icon, String key, Runnable action) {
@@ -543,7 +590,13 @@ public class QuillEditScreen extends Screen {
 		if (colourPopup != null) {
 			colourPopup.render(context, mouseX, mouseY);
 		}
+		if (findBar != null) {
+			findBar.renderBehind(context);
+		}
 		super.render(context, mouseX, mouseY, delta);
+		if (findBar != null) {
+			findBar.renderTally(context, textRenderer);
+		}
 
 		drawCounter(context);
 		drawDictation(context);
@@ -789,7 +842,7 @@ public class QuillEditScreen extends Screen {
 			if (i == line.leaderAt) {
 				x = flush(context, run, runStyle, runX, y);
 				runStyle = null;
-				x += line.leaderPad.width();
+				x = drawPad(context, line.leaderPad, style, x, y);
 				if (line.leaderDots > 0) {
 					String dots = ".".repeat(line.leaderDots);
 					context.drawText(textRenderer, Text.literal(dots).setStyle(style.toVanilla(INK)),
@@ -808,7 +861,7 @@ public class QuillEditScreen extends Screen {
 				runX = x;
 			}
 			if (widened) {
-				x += pad.width();
+				x = drawPad(context, pad, style, x, y);
 				runX = x;
 				continue;
 			}
@@ -820,6 +873,37 @@ public class QuillEditScreen extends Screen {
 			QuillStyle style = paragraph.styleAt(Math.max(line.start, line.contentEnd - 1));
 			context.drawText(textRenderer, Text.literal("-").setStyle(style.toVanilla(INK)), (int) x, y, INK, false);
 		}
+	}
+
+	/**
+	 * The blanks a widened gap is made of, drawn rather than stepped over.
+	 *
+	 * <p>They go onto the page wearing the style of the text around them – see the same condition in
+	 * {@code LegacyCodec.encodeLine} – so an underline or a strikethrough runs straight through the
+	 * gap in the finished book. Stepping over it here showed the writer a line broken in places where
+	 * every reader sees it whole. Only those two decorations can be seen on a blank, so only they are
+	 * worth a draw call; bold and colour change nothing about a space, and obfuscation is taken off
+	 * the blanks by the encoder or the gap would fill with noise.
+	 */
+	private float drawPad(DrawContext context, Widths.Padding pad, QuillStyle style, float x, int y) {
+		QuillStyle flat = style.withObfuscated(false).withBold(false);
+		if (!flat.underlined() && !flat.strikethrough()) {
+			return x + pad.width();
+		}
+		int plain = Math.max(0, pad.count() - pad.bold());
+		if (plain > 0) {
+			context.drawText(textRenderer, Text.literal(" ".repeat(plain)).setStyle(flat.toVanilla(INK & 0xFFFFFF)),
+					(int) x, y, INK, false);
+			x += plain * Widths.space();
+		}
+		if (pad.bold() > 0) {
+			QuillStyle bold = flat.withBold(true);
+			context.drawText(textRenderer,
+					Text.literal(" ".repeat(pad.bold())).setStyle(bold.toVanilla(INK & 0xFFFFFF)),
+					(int) x, y, INK, false);
+			x += pad.bold() * Widths.boldSpace();
+		}
+		return x;
 	}
 
 	private float flush(DrawContext context, StringBuilder run, @Nullable QuillStyle style, float x, int y) {
@@ -879,8 +963,34 @@ public class QuillEditScreen extends Screen {
 	 * carry on writing – never went away at all.
 	 */
 	private void say(Text message) {
+		say(message, 4000L);
+	}
+
+	private void say(Text message, long millis) {
 		notice = message;
-		noticeUntil = System.currentTimeMillis() + 4000L;
+		noticeUntil = System.currentTimeMillis() + millis;
+	}
+
+	/**
+	 * Says so when the font this page is being measured against is not the one it will be read in.
+	 *
+	 * <p>Every space this mod writes is arithmetic over glyph advances, and the advances come from
+	 * the font the client has loaded. Turn the unicode font on and every letter changes width at
+	 * once: the page still looks laid out here, because here it is measured the same way it was
+	 * written, and lands crooked for everybody reading it with the ordinary font. Worse, a line laid
+	 * out to the full 114 pixels under one font can be wider than that under another, and then the
+	 * game breaks it in two and the last line of the page falls off the bottom.
+	 *
+	 * <p>Once per screen, not once per resize, and only where it is true.
+	 */
+	private void warnAboutFont() {
+		if (fontWarned || client == null) {
+			return;
+		}
+		fontWarned = true;
+		if (client.options.getForceUnicodeFont().getValue()) {
+			say(Text.translatable("roleplayersquill.editor.unicodefont"), 10000L);
+		}
 	}
 
 	@Override
@@ -1060,7 +1170,9 @@ public class QuillEditScreen extends Screen {
 			if (!editor.document().canAddPage()) {
 				return;
 			}
-			editor.addPage();
+			// Turning past the last page is asking for a page after it, not for a blank one where the
+			// last page stands.
+			editor.appendPage();
 			return;
 		}
 		editor.setPage(target);
@@ -1084,6 +1196,9 @@ public class QuillEditScreen extends Screen {
 
 	private boolean typingInSearch() {
 		if (colourPopup != null && colourPopup.typing(getFocused())) {
+			return true;
+		}
+		if (findBar != null && findBar.box() != null && getFocused() == findBar.box()) {
 			return true;
 		}
 		return symbolsOpen && symbolPanel != null && symbolPanel.searching(getFocused());
@@ -1112,6 +1227,18 @@ public class QuillEditScreen extends Screen {
 			toggleSymbols();
 			return true;
 		}
+		if (keyCode == GLFW.GLFW_KEY_ESCAPE && findBar != null) {
+			closeFindBar();
+			return true;
+		}
+		// Enter in the find box walks the matches, the way it does in every search box: forwards,
+		// or backwards with shift. Without this it would fall through and put a line break in the
+		// book somebody is searching.
+		if (findBar != null && findBar.box() != null && getFocused() == findBar.box()
+				&& (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER)) {
+			findBar.step(!Screen.hasShiftDown());
+			return true;
+		}
 		if (typingInSearch() && !Screen.hasControlDown()) {
 			return super.keyPressed(keyCode, scanCode, modifiers);
 		}
@@ -1125,7 +1252,7 @@ public class QuillEditScreen extends Screen {
 		switch (keyCode) {
 			case GLFW.GLFW_KEY_ENTER, GLFW.GLFW_KEY_KP_ENTER -> {
 				if (control) {
-					editor.addPage();
+					editor.newPageAfter();
 				} else {
 					editor.newParagraph();
 				}
@@ -1279,10 +1406,10 @@ public class QuillEditScreen extends Screen {
 				return true;
 			}
 			case GLFW.GLFW_KEY_F -> {
-				// Finding and replacing are one window, so there is no second key for replacing –
-				// which is just as well, because Word's Ctrl+H is hyphenation here and has been
-				// since before there was anything to find.
-				openFind();
+				// The strip, not the window: looking for a word is the common case by a long way,
+				// and it does not deserve a form standing over the page it is looking through. The
+				// window with replacing in it is one button along.
+				openFindBar();
 				return true;
 			}
 			case GLFW.GLFW_KEY_K -> {
@@ -1641,12 +1768,38 @@ public class QuillEditScreen extends Screen {
 		Dictation.release();
 	}
 
+	/**
+	 * Stops before a page goes out broken, and says which one.
+	 *
+	 * <p>The warning under the page speaks only for the page being looked at, and a book is written
+	 * back from wherever the writer happened to stop. A page that outgrew its room earlier in the
+	 * book is either refused by the server outright, losing the whole edit, or taken and drawn short
+	 * for every reader – so it is worth turning to it and saying so instead.
+	 *
+	 * @return true when the book is fit to send
+	 */
+	public boolean checkPagesFit() {
+		int broken = editor.firstPageThatOverflows();
+		if (broken < 0) {
+			return true;
+		}
+		editor.setPage(broken);
+		say(Text.translatable("roleplayersquill.editor.pagebroken", broken + 1), 8000L);
+		return false;
+	}
+
 	/** Writes the book back, and keeps the document beside it. Nothing else ever calls this. */
 	public void save() {
 		editor.document().trimTrailingEmptyPages();
+		if (!checkPagesFit()) {
+			return;
+		}
 		List<String> pages = editor.encodePages();
 		BookSender.saveDraft(stack, hand, pages);
 		BookIO.saveDraft(editor.document(), pages, ownerTag(hand));
+		// A copy of the book as it goes out, so that a week of rewriting can be walked back through
+		// long after undo has forgotten it.
+		BookIO.keepVersion(editor.document(), pages);
 		BookIO.writeLastSave(pages);
 		// The server's copy is these pages now, so this is what the draft has to be filed under from
 		// here on – otherwise reopening the book would look for a draft that was never written.

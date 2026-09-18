@@ -40,15 +40,34 @@ public class FindScreen extends DialogScreen {
 	/** Where the last match was, so that "next" carries on rather than starting over. */
 	private BookSearch.Hit at = new BookSearch.Hit(0, 0, 0, 0);
 
+	/** The book behind, when there is one, so this can stand under it rather than over it. */
+	@Nullable
+	private final QuillEditScreen book;
+
 	public FindScreen(@Nullable Screen parent, PageEditor editor) {
 		super(parent, Text.translatable("roleplayersquill.find.title"));
+		this.book = parent instanceof QuillEditScreen screen ? screen : null;
 		this.editor = editor;
 		this.panelWidth = 300;
 	}
 
+	/**
+	 * Under the book, not over it.
+	 *
+	 * <p>A window for finding things on a page has no business covering the page. It goes below the
+	 * row with Sign and Done on it, and is pushed back up only if there is not the room.
+	 */
+	@Override
+	protected int panelTop() {
+		if (book == null) {
+			return super.panelTop();
+		}
+		return Math.max(2, Math.min(book.belowButtons() + 4, height - panelHeight - 2));
+	}
+
 	@Override
 	protected void init() {
-		this.panelHeight = replacing ? 158 : 110;
+		this.panelHeight = replacing ? 158 : 134;
 		super.init();
 
 		String was = needle == null ? "" : needle.getText();
@@ -102,6 +121,9 @@ public class FindScreen extends DialogScreen {
 					.dimensions(panelX + 118, y, 100, 20).build());
 			addDrawableChild(ButtonWidget.builder(Text.translatable("roleplayersquill.symbols.close"), b -> close())
 					.dimensions(panelX + 224, y, 64, 20).build());
+			addDrawableChild(ButtonWidget.builder(Text.translatable("roleplayersquill.find.library"),
+							b -> client.setScreen(new LibraryScreen(this, needle.getText())))
+					.dimensions(panelX + 12, y + 24, 276, 20).build());
 		}
 	}
 

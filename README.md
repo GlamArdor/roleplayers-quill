@@ -6,10 +6,12 @@ everybody can read, with no mod and no resource pack.
 
 Client side only. The server is never told this exists.
 
-> **Status:** every piece of arithmetic in here is checked by `tools/LayoutCheck.java`, which lays
-> pages out against a font of known widths and measures what the encoder actually wrote. What has
-> not yet happened is a long evening of writing an actual book with it on an actual server. Please
-> report anything odd.
+> **Status:** in use on a roleplay server where most people do not have it, which is the case that
+> matters. Every piece of arithmetic in here is checked by `tools/LayoutCheck.java`, which lays pages
+> out against a font of known widths and measures what the encoder actually wrote – 995 checks as
+> this is written. The ones that count hardest are about other readers: a page this mod did not
+> touch goes back out character for character, and a page it did write is an ordinary book page for
+> everybody else.
 
 ## What it does
 
@@ -38,6 +40,19 @@ Unicode names.
 
 **A format brush.** Pick formatting up from one place and paint it onto another, like the one in
 Word.
+
+**Finding.** `Ctrl+F` opens a strip below the book, the size of a browser's find bar, and the caret
+moves to the match as the word is typed. Replacing is a window of its own, one button away. There is
+also a search across every book you have written, which answers the question a writer actually has:
+which book was that in.
+
+**The book's history.** Twenty versions are kept per book, every time one is really written back,
+with the page itself shown beside the list of dates – because a list of dates does not say which
+evening's work is which. Restoring is an ordinary edit and a `Ctrl+Z` undoes it.
+
+**Blocks you type over and over.** A dateline and a signature, ready made, alongside the page
+templates. The signature takes the name off the tab list rather than the account, without its colours
+and without the `[rank]` in front of it: on a roleplay server those are two different people.
 
 **Import and export.** Read a chapter out of a text file through the system's own file picker; write
 the book back out as text, or as a format that keeps every paragraph, alignment, link and colour so
@@ -96,6 +111,17 @@ underline is a line of exactly the width you paid for.
 
 None of this needs the reader to have anything installed. The book is a vanilla book with spaces in
 it.
+
+### Costing nothing when nothing is asked for
+
+A paragraph that wants no pixels is written with none. Plain text, left aligned, no list and no
+frame, goes out as one paragraph with the game's own line breaking left to do the wrapping – not as
+a line break per line, which is what an editor that lays everything out would naturally emit.
+
+It matters twice over. A book written without this mod and opened with it goes back unchanged, so
+nothing of somebody else's formatting is rearranged. And a server plugin that tears a page out and
+copies it onto paper sees the paragraph it expects: a page full of line breaks came out on the paper
+double spaced, and a page with none comes out looking the way it was written.
 
 ### What it cannot do, and what creative mode does about it
 
@@ -164,6 +190,7 @@ and of the model is used and nothing is downloaded twice.
 | `Ctrl+C` `Ctrl+X` `Ctrl+V` | copy, cut, paste |
 | `Ctrl+Shift+C` `Ctrl+Shift+V` | pick up formatting, paint it on |
 | `Ctrl+K` `Ctrl+G` `Ctrl+T` | link, symbols, table |
+| `Ctrl+F` | find |
 | `Ctrl+H` | hyphenation on and off |
 | `Ctrl+Enter` `Page Up` `Page Down` | new page, turn back, turn on |
 | `Insert` | dictate |

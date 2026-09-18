@@ -31,9 +31,13 @@ public class SignBookScreen extends DialogScreen {
 	private final ItemStack stack;
 	private final Hand hand;
 	private TextFieldWidget titleField;
+	/** The book this came from, where a page too big to send has to be shown. */
+	@Nullable
+	private final QuillEditScreen book;
 
 	public SignBookScreen(@Nullable Screen parent, PageEditor editor, ItemStack stack, Hand hand) {
 		super(parent, Text.translatable("roleplayersquill.sign.title"));
+		this.book = parent instanceof QuillEditScreen screen ? screen : null;
 		this.editor = editor;
 		this.stack = stack;
 		this.hand = hand;
@@ -62,6 +66,12 @@ public class SignBookScreen extends DialogScreen {
 	private void sign() {
 		MinecraftClient client = MinecraftClient.getInstance();
 		editor.document().trimTrailingEmptyPages();
+		// Signing cannot be taken back, so a page that will not survive the crossing stops it here.
+		// The editor turns to that page and says which one it is.
+		if (book != null && !book.checkPagesFit()) {
+			client.setScreen(book);
+			return;
+		}
 		String name = editor.document().title().isBlank()
 				? Text.translatable("roleplayersquill.sign.untitled").getString()
 				: editor.document().title();

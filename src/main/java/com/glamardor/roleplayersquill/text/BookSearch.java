@@ -2,6 +2,7 @@ package com.glamardor.roleplayersquill.text;
 
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
@@ -59,6 +60,70 @@ public final class BookSearch {
 			}
 		}
 		return null;
+	}
+
+	/**
+	 * Every match in the book, in reading order.
+	 *
+	 * <p>A book is a hundred pages at the very outside, so there is no sense in being clever: having
+	 * the whole list makes walking backwards and saying "third of eleven" a matter of arithmetic
+	 * rather than of another search that has to agree with the first one.
+	 */
+	public static List<Hit> all(List<List<Paragraph>> pages, String needle, boolean matchCase) {
+		List<Hit> hits = new ArrayList<>();
+		if (needle.isEmpty()) {
+			return hits;
+		}
+		for (int page = 0; page < pages.size(); page++) {
+			List<Paragraph> current = pages.get(page);
+			for (int index = 0; index < current.size(); index++) {
+				String text = current.get(index).text();
+				int at = indexOf(text, needle, 0, matchCase);
+				while (at >= 0) {
+					hits.add(new Hit(page, index, at, at + needle.length()));
+					at = indexOf(text, needle, at + needle.length(), matchCase);
+				}
+			}
+		}
+		return hits;
+	}
+
+	/** The match before this one, wrapping round to the last. */
+	@Nullable
+	public static Hit previous(List<List<Paragraph>> pages, String needle, boolean matchCase, Hit before) {
+		List<Hit> hits = all(pages, needle, matchCase);
+		if (hits.isEmpty()) {
+			return null;
+		}
+		for (int i = hits.size() - 1; i >= 0; i--) {
+			if (isBefore(hits.get(i), before)) {
+				return hits.get(i);
+			}
+		}
+		return hits.get(hits.size() - 1);
+	}
+
+	/** Which match this is, counting from one, or 0 when it is not one of them. */
+	public static int ordinalOf(List<List<Paragraph>> pages, String needle, boolean matchCase, Hit hit) {
+		List<Hit> hits = all(pages, needle, matchCase);
+		for (int i = 0; i < hits.size(); i++) {
+			Hit other = hits.get(i);
+			if (other.page() == hit.page() && other.paragraph() == hit.paragraph()
+					&& other.from() == hit.from()) {
+				return i + 1;
+			}
+		}
+		return 0;
+	}
+
+	private static boolean isBefore(Hit one, Hit other) {
+		if (one.page() != other.page()) {
+			return one.page() < other.page();
+		}
+		if (one.paragraph() != other.paragraph()) {
+			return one.paragraph() < other.paragraph();
+		}
+		return one.from() < other.from();
 	}
 
 	/** How many times it occurs in the whole book. */

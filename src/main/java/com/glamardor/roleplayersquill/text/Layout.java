@@ -194,11 +194,17 @@ public final class Layout {
 				while (scan < length) {
 					char c = paragraph.charAt(scan);
 					float advance = Widths.advance(c, paragraph.styleAt(scan).bold());
-					if (width + advance > available && scan > cursor) {
-						break;
-					}
+					// The blank is remembered as somewhere the line may end before the width is
+					// tested, which is the order TextHandler.LineBreakingVisitor does it in: a blank
+					// that is itself what tips the line over ends the line where it stands, rather
+					// than sending the word in front of it down to the next one. Testing first cost a
+					// line every so often, and the page the game would have drawn was not the page
+					// this mod had laid out.
 					if (c == ' ') {
 						lastSpace = scan;
+					}
+					if (width + advance > available && scan > cursor) {
+						break;
 					}
 					width += advance;
 					scan++;

@@ -360,6 +360,96 @@ public final class LayoutCheck {
 					"bullet " + i + " came back as \"" + reread.get(i).text() + "\"");
 		}
 
+		section("A book written without this mod is not rearranged by it");
+
+		// A page as the vanilla editor leaves one: no line breaks at all, because the game wraps the
+		// text as it draws it, and a red line typed as blanks in front of the first word. Reading
+		// those blanks as an indent cost every line of the paragraph eight pixels, which pushed the
+		// bottom of somebody else's page off the bottom of it.
+		String body = "Мы, милостью богов, объявляем всем подданным нашего королевства, что "
+				+ "означенный день будет отмечен ярмаркой, и всякий, кто пожелает торговать, "
+				+ "да придёт к ратуше до полудня, ибо после полудня места разобраны будут.";
+		String vanilla = "    " + body;
+		List<Paragraph> asWritten = LegacyCodec.decode(vanilla);
+		expect(asWritten.size() == 1,
+				"a page with no line breaks came back as " + asWritten.size() + " paragraphs");
+		expect(asWritten.get(0).indent() == 0,
+				"a red line typed by hand came back as an indent of " + asWritten.get(0).indent());
+		expect(asWritten.get(0).alignment() == Alignment.LEFT,
+				"a red line typed by hand came back aligned " + asWritten.get(0).alignment());
+		expect(asWritten.get(0).text().equals(vanilla),
+				"the blanks in front of a paragraph were taken out of the text");
+
+		int byTheGame = greedyLines(vanilla);
+		int laidOut = Layout.lay(asWritten, Layout.Options.DEFAULT).size();
+		expect(laidOut <= byTheGame,
+				"the game wraps this page into " + byTheGame + " lines and this mod lays it into " + laidOut);
+
+		// An indent this mod wrote is still read back as an indent: it lands on a whole step, which
+		// is the difference between a measurement and a guess.
+		List<Paragraph> stepped = LegacyCodec.decode("        Отступ.");
+		expect(stepped.get(0).indent() == 4,
+				"an indent this mod wrote came back as " + stepped.get(0).indent());
+
+		// And a page nobody edited goes back out as the very string it came in as.
+		QuillDocument received = new QuillDocument();
+		String borrowed = "  Страница из чужой книги, с её собственными пробелами.";
+		received.rememberSource(LegacyCodec.decode(borrowed), borrowed);
+		expect(borrowed.equals(received.sourceOf(LegacyCodec.decode(borrowed))),
+				"a page nobody touched was not recognised as the page that arrived");
+		List<Paragraph> touched = LegacyCodec.decode(borrowed);
+		touched.get(0).insert(0, "!", QuillStyle.PLAIN);
+		expect(received.sourceOf(touched) == null,
+				"an edited page still passed for the page that arrived");
+
+		// The vanilla editor is a text box that counts lines, not a page that draws them, and it has
+		// room for exactly fourteen. An empty line hanging off the end of a page is invisible to a
+		// reader and is a fifteenth line to that box: it grows a scrollbar and slides the text under
+		// itself for everybody without this mod.
+		List<Paragraph> trailing = new ArrayList<>();
+		trailing.add(new Paragraph("Одна строчка.", QuillStyle.PLAIN));
+		trailing.add(new Paragraph());
+		trailing.add(new Paragraph());
+		String tail = LegacyCodec.encode(trailing, Layout.lay(trailing, Layout.Options.DEFAULT));
+		expect(!tail.endsWith("\n"), "a page was written ending in a line break");
+		expect(tail.split("\n", -1).length == 1,
+				"a page with two empty lines after it was written as "
+						+ tail.split("\n", -1).length + " lines");
+
+		// The same page counted the way the vanilla editor counts it.
+		expect(LegacyCodec.editorLines("одна\nдве\nтри") == 3,
+				"three lines were counted as " + LegacyCodec.editorLines("одна\nдве\nтри"));
+		expect(LegacyCodec.editorLines("одна\n") == 2,
+				"a page ending in a break was counted as " + LegacyCodec.editorLines("одна\n"));
+		expect(LegacyCodec.fitsTheVanillaEditor("одна\nдве"),
+				"a two-line page was called too big for the vanilla editor");
+		expect(!LegacyCodec.fitsTheVanillaEditor("1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n"),
+				"fourteen lines and an empty one after them passed for a page that fits");
+		expect(LegacyCodec.fitsTheVanillaEditor("1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14"),
+				"exactly fourteen lines were called too many");
+
+		// A blank line between two paragraphs is not trailing and is still written.
+		List<Paragraph> spaced = new ArrayList<>();
+		spaced.add(new Paragraph("Первая.", QuillStyle.PLAIN));
+		spaced.add(new Paragraph());
+		spaced.add(new Paragraph("Вторая.", QuillStyle.PLAIN));
+		expect(LegacyCodec.encode(spaced, Layout.lay(spaced, Layout.Options.DEFAULT))
+						.split("\n", -1).length == 3,
+				"a blank line between two paragraphs was lost");
+
+		// The name a signature is written with comes off the tab list, where a server hangs a rank,
+		// an id and a colour on it. None of that is the character's name.
+		expect(com.glamardor.roleplayersquill.text.TextSet.clean("§a[Лорд] §fЭлиандрэль")
+						.equals("Элиандрэль"),
+				"a rank in brackets was kept in the signature: \""
+						+ com.glamardor.roleplayersquill.text.TextSet.clean("§a[Лорд] §fЭлиандрэль") + "\"");
+		expect(com.glamardor.roleplayersquill.text.TextSet.clean("[123][RP] Грэй Лунгарр")
+						.equals("Грэй Лунгарр"),
+				"two bracketed pieces were not both taken off the name");
+		expect(com.glamardor.roleplayersquill.text.TextSet.clean("Флири Анемониа")
+						.equals("Флири Анемониа"),
+				"a plain name was changed");
+
 		section("Things that only look like lists are left alone");
 		List<Paragraph> speech = new ArrayList<>();
 		speech.add(new Paragraph("– Здравствуйте, – сказал он.", QuillStyle.PLAIN));
@@ -411,11 +501,22 @@ public final class LayoutCheck {
 	 * total is not over the width, break at the last space when it is, and treat a line break as a
 	 * break that costs one character.
 	 */
+	/**
+	 * How many lines the game draws a written page as.
+	 *
+	 * <p>Transcribed by hand from {@code TextHandler.LineBreakingVisitor} and kept apart from the
+	 * mod's own copy of the same rule on purpose: a check that calls the code it is checking proves
+	 * only that the code agrees with itself. A blank is noted as a place the line may end before the
+	 * width is tested; the line that goes over ends at the last blank noted, and what followed that
+	 * blank begins the next line.
+	 */
 	private static int wrapLikeTheGame(String page) {
-		int count = 0;
+		int lines = 1;
 		boolean bold = false;
-		float width = 0.0f;
-		int sinceLastSpace = 0;
+		float total = 0.0f;
+		float beforeSpace = 0.0f;
+		float spaceWidth = 0.0f;
+		boolean haveSpace = false;
 		boolean anything = false;
 
 		for (int i = 0; i < page.length(); i++) {
@@ -431,26 +532,29 @@ public final class LayoutCheck {
 				continue;
 			}
 			if (c == '\n') {
-				count++;
-				width = 0.0f;
-				sinceLastSpace = 0;
+				lines++;
+				total = 0.0f;
+				haveSpace = false;
 				anything = false;
 				continue;
 			}
 			float advance = advance(c, bold);
-			if (anything && width + advance > PAGE) {
-				// A wrap here is already a failure – every line this mod writes ends in a real line
-				// break and is meant to fit – so what the game would carry to the next line does not
-				// need modelling. It only needs counting, so the check can say that one happened.
-				count++;
-				width = 0.0f;
-				anything = false;
+			if (c == ' ') {
+				haveSpace = true;
+				beforeSpace = total;
+				spaceWidth = advance;
 			}
-			width += advance;
+			total += advance;
+			if (anything && total > PAGE) {
+				lines++;
+				total = haveSpace ? total - beforeSpace - spaceWidth : advance;
+				haveSpace = false;
+				anything = total != 0.0f;
+				continue;
+			}
 			anything |= advance != 0.0f;
-			sinceLastSpace = c == ' ' ? 0 : sinceLastSpace + 1;
 		}
-		return count + 1;
+		return lines;
 	}
 
 	private static void checkRoundTrip() {
@@ -981,6 +1085,35 @@ public final class LayoutCheck {
 	}
 
 	// ---- plumbing --------------------------------------------------------------------------------------
+
+	/**
+	 * How many lines the game itself makes of a page that carries no line breaks.
+	 *
+	 * <p>Greedy, breaking at the last blank that still fits and swallowing it, which is what
+	 * {@code TextHandler} does. Used to hold this mod to the line count the reader would have got
+	 * without it.
+	 */
+	private static int greedyLines(String text) {
+		int lines = 1;
+		float width = 0.0f;
+		int lastSpace = -1;
+		float widthAtSpace = 0.0f;
+		for (int i = 0; i < text.length(); i++) {
+			char c = text.charAt(i);
+			float step = advance(c, false);
+			if (width + step > PAGE && lastSpace >= 0) {
+				lines++;
+				width -= widthAtSpace + advance(' ', false);
+				lastSpace = -1;
+			}
+			if (c == ' ') {
+				lastSpace = i;
+				widthAtSpace = width;
+			}
+			width += step;
+		}
+		return lines;
+	}
 
 	private static void section(String name) {
 		System.out.println();
