@@ -133,6 +133,8 @@ public class QuillEditScreen extends Screen {
 	private Text notice;
 	private long noticeUntil;
 	private boolean fontWarned;
+	/** Whether the book has already been looked over for ink an older version left on it. */
+	private boolean mendOffered;
 	/** The find strip under the book, when it is open. Null is closed. */
 	@Nullable
 	private FindBar findBar;
@@ -208,6 +210,7 @@ public class QuillEditScreen extends Screen {
 	protected void init() {
 		Widths.clear();
 		warnAboutFont();
+		offerToMend();
 		tools.clear();
 
 		List<List<IconButton>> groups = buildTools();
@@ -396,7 +399,7 @@ public class QuillEditScreen extends Screen {
 		// written past the bottom of the last page, and a button for what already happens on its own
 		// is a button that only ever gets pressed by mistake.
 		groups.add(List.of(
-				tool(Icons.PAGE_INSERT, "page_insert", editor::addPage)
+				tool(Icons.PAGE_INSERT, "page_insert", editor::newPageAfter)
 						.onlyWhen(() -> editor.document().canAddPage()),
 				tool(Icons.PAGE_COPY, "page_copy", () -> QuillClipboard.putPage(editor.currentPage())),
 				tool(Icons.PAGE_PASTE, "page_paste", this::pastePage).onlyWhen(QuillClipboard::hasPage),
@@ -991,6 +994,36 @@ public class QuillEditScreen extends Screen {
 		if (client.options.getForceUnicodeFont().getValue()) {
 			say(Text.translatable("roleplayersquill.editor.unicodefont"), 10000L);
 		}
+	}
+
+	/**
+	 * Says so when the book was written before this mod could tell black from nothing at all.
+	 *
+	 * <p>Such a book reads perfectly – on parchment the two are the same ink – and falls apart the
+	 * moment the server tears a page out of it, where black lands on a dark tooltip and the sentence
+	 * is gone. Writing the book back mends it, and writing the book back is the one thing this
+	 * editor will not do on its own. So the book is marked as having something unsaved in it, which
+	 * is true, and the writer is told what that something is.
+	 *
+	 * <p>Asked of the strings the book arrived as, and not of the document. A page knows what it
+	 * came in as only where reading it and writing it again land on the same page exactly – which is
+	 * the common case and not the certain one, and a book whose pages all fell just short of it said
+	 * nothing at all while quietly needing mending on every one of them.
+	 */
+	private void offerToMend() {
+		if (mendOffered) {
+			return;
+		}
+		mendOffered = true;
+		boolean old = false;
+		for (String page : original) {
+			old |= page.indexOf(LegacyCodec.SECTION + "0") >= 0;
+		}
+		if (!old) {
+			return;
+		}
+		editor.touch();
+		say(Text.translatable("roleplayersquill.editor.oldink"), 10000L);
 	}
 
 	@Override

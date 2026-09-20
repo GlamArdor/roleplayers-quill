@@ -117,6 +117,7 @@
 	"roleplayersquill.editor.counter": "%1$s/%2$s · %3$s/%4$s",
 	"roleplayersquill.editor.overflow": "cut off: %s",
 	"roleplayersquill.editor.unicodefont": "Unicode font is on: this layout will only line up for you",
+	"roleplayersquill.editor.oldink": "Written by an older version: save the book and torn pages will read properly",
 	"roleplayersquill.tool.reflow": "Pour the overflow onto the pages after this one",
 	"roleplayersquill.editor.saved": "Book written",
 	"roleplayersquill.tool.save": "Save (Ctrl+S)",

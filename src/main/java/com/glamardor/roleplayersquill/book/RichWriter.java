@@ -1,6 +1,7 @@
 package com.glamardor.roleplayersquill.book;
 
 import com.glamardor.roleplayersquill.text.Layout;
+import com.glamardor.roleplayersquill.text.LegacyCodec;
 import com.glamardor.roleplayersquill.text.Paragraph;
 import com.glamardor.roleplayersquill.text.QuillStyle;
 import com.glamardor.roleplayersquill.text.Widths;
@@ -31,16 +32,58 @@ public final class RichWriter {
 	private RichWriter() {
 	}
 
-	/** One page, laid out and written as a component tree. */
+	/**
+	 * One page, laid out and written as a component tree.
+	 *
+	 * <p>Broken into lines exactly where {@link LegacyCodec} breaks it, and for the same reason: a
+	 * paragraph the game would wrap at these very places is handed over whole, with the break at its
+	 * end and nowhere else. A break on every line is this mod's signature, and anything that reads a
+	 * page rather than draws it – the server's torn-page plugin, first of all – can see it.
+	 */
 	public static Text encode(List<Paragraph> page, List<Layout.LaidLine> lines) {
 		MutableText out = Text.empty();
-		for (int i = 0; i < lines.size(); i++) {
-			if (i > 0) {
+		int last = LegacyCodec.worthWriting(lines);
+		int at = 0;
+		boolean started = false;
+		while (at < last) {
+			int index = lines.get(at).paragraph;
+			int after = at;
+			while (after < last && lines.get(after).paragraph == index) {
+				after++;
+			}
+			if (started) {
 				out.append(Text.literal("\n"));
 			}
-			encodeLine(out, page, lines.get(i));
+			started = true;
+
+			if (LegacyCodec.needsNoPixels(lines, at, after)) {
+				encodeRun(out, page.get(index), lines.get(at).start, lines.get(after - 1).contentEnd);
+			} else {
+				for (int i = at; i < after; i++) {
+					if (i > at) {
+						out.append(Text.literal("\n"));
+					}
+					encodeLine(out, page, lines.get(i));
+				}
+			}
+			at = after;
 		}
 		return out;
+	}
+
+	/** A paragraph the game will break up itself: its text, its styles, and no breaks of our own. */
+	private static void encodeRun(MutableText out, Paragraph paragraph, int from, int to) {
+		StringBuilder run = new StringBuilder();
+		QuillStyle runStyle = null;
+		for (int i = from; i < to; i++) {
+			QuillStyle style = paragraph.styleAt(i);
+			if (runStyle == null || !runStyle.equals(style)) {
+				flush(out, run, runStyle);
+				runStyle = style;
+			}
+			run.append(paragraph.charAt(i));
+		}
+		flush(out, run, runStyle);
 	}
 
 	private static void encodeLine(MutableText out, List<Paragraph> page, Layout.LaidLine line) {
@@ -54,7 +97,7 @@ public final class RichWriter {
 			appendSpaces(out, QuillStyle.PLAIN, line.leftPad);
 		}
 		if (!line.marker.isEmpty()) {
-			out.append(Text.literal(line.marker).setStyle(line.markerStyle.toRichVanilla(0)));
+			out.append(Text.literal(line.marker).setStyle(line.markerStyle.toRichVanilla()));
 			if (!line.markerPad.isEmpty()) {
 				appendSpaces(out, QuillStyle.PLAIN, line.markerPad);
 			}
@@ -73,7 +116,7 @@ public final class RichWriter {
 					appendSpaces(out, style.withObfuscated(false), line.leaderPad);
 				}
 				if (line.leaderDots > 0) {
-					out.append(Text.literal(".".repeat(line.leaderDots)).setStyle(style.toRichVanilla(0)));
+					out.append(Text.literal(".".repeat(line.leaderDots)).setStyle(style.toRichVanilla()));
 				}
 				continue;
 			}
@@ -96,7 +139,7 @@ public final class RichWriter {
 
 		if (line.hyphen) {
 			QuillStyle style = paragraph.styleAt(Math.max(line.start, line.contentEnd - 1));
-			out.append(Text.literal("-").setStyle(style.withoutInteraction().toRichVanilla(0)));
+			out.append(Text.literal("-").setStyle(style.withoutInteraction().toRichVanilla()));
 		}
 
 		if (line.frame.present()) {
@@ -110,10 +153,10 @@ public final class RichWriter {
 		int plain = Math.max(0, padding.count() - padding.bold());
 		QuillStyle flat = base.withObfuscated(false).withBold(false).withoutInteraction();
 		if (plain > 0) {
-			out.append(Text.literal(" ".repeat(plain)).setStyle(flat.toRichVanilla(0)));
+			out.append(Text.literal(" ".repeat(plain)).setStyle(flat.toRichVanilla()));
 		}
 		if (padding.bold() > 0) {
-			out.append(Text.literal(" ".repeat(padding.bold())).setStyle(flat.withBold(true).toRichVanilla(0)));
+			out.append(Text.literal(" ".repeat(padding.bold())).setStyle(flat.withBold(true).toRichVanilla()));
 		}
 	}
 
@@ -122,8 +165,8 @@ public final class RichWriter {
 			return;
 		}
 		out.append(Text.literal(run.toString()).setStyle(style == null
-				? QuillStyle.PLAIN.toRichVanilla(0)
-				: style.toRichVanilla(0)));
+				? QuillStyle.PLAIN.toRichVanilla()
+				: style.toRichVanilla()));
 		run.setLength(0);
 	}
 }

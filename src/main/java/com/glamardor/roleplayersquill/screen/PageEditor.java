@@ -771,32 +771,15 @@ public final class PageEditor {
 	}
 
 	/**
-	 * An empty page where this one is, pushing this one and everything after it along.
-	 *
-	 * <p>In front of the current page rather than behind it, because that is what the button is for:
-	 * you are looking at the page you want to write something before. A page added after the one you
-	 * are on is a page you then have to turn to, and one you cannot use to put a title in front of a
-	 * chapter at all.
-	 *
-	 * <p>Only the button. Turning past the end of the book and asking for a new page while writing
-	 * are the opposite movement and have their own – see {@link #newPageAfter()}. Sharing this one
-	 * with them left the writer looking at a blank page with their own text moved on to the next.
-	 */
-	public void addPage() {
-		if (!document.canAddPage()) {
-			return;
-		}
-		document.mark();
-		document.insertPage(page, QuillDocument.newPage());
-		setPage(page);
-		changed = true;
-	}
-
-	/**
 	 * An empty page after this one, with the caret on it.
 	 *
 	 * <p>What asking for a new page while writing means: the page being written stays where it is
-	 * and the writing carries on overleaf.
+	 * and the writing carries on overleaf. The button on the toolbar says "after this one" and does
+	 * this; it used to wedge the blank page in where the writer was standing instead, which put
+	 * their own text on the page after and looked for all the world like the page had been replaced.
+	 *
+	 * <p>A page in front of the first one is the pages menu's business: make one here and send it up
+	 * with the arrow. It is rare enough not to be worth a button that does the opposite of its name.
 	 */
 	public void newPageAfter() {
 		if (!document.canAddPage()) {
@@ -1359,18 +1342,36 @@ public final class PageEditor {
 	/**
 	 * The string one page will go out as.
 	 *
-	 * <p>The one it came in as, where it came in as one and nobody has touched it. The exception is
-	 * a page that does not fit the vanilla editor as it stands: leaving that alone would be leaving
-	 * it broken for every reader without this mod, for the sake of not touching what this mod itself
-	 * wrote badly. Laying it out again is what mends it, and it is the only thing that mends it
-	 * without the writer retyping the book.
+	 * <p>The one it came in as, where it came in as one and nobody has touched it. There are two
+	 * exceptions, and both are pages this mod broke itself rather than pages somebody lent us.
+	 *
+	 * <p>One is a page that does not fit the vanilla editor as it stands: leaving it alone would be
+	 * leaving it broken for every reader without this mod, for the sake of not touching what this
+	 * mod itself wrote badly.
+	 *
+	 * <p>The other is a page carrying {@code §0}, which for as long as this mod had no better way of
+	 * saying "and now nothing" is how it said it. On the page there is nothing to see – black is the
+	 * ink a book is printed in – but a plugin that tears the page out and puts the text on an item
+	 * gets black on a dark tooltip, and the sentence is gone. Writing the page again is the only
+	 * thing that mends it, it cannot be seen in the book either way, and it is not a thing anybody
+	 * typed: {@code §} cannot be entered in the vanilla editor at all.
+	 *
+	 * <p>Mending is still refused where it would make the page too long to send, which is the one
+	 * way rewriting a page could do real harm.
 	 */
 	private String pageString(List<Paragraph> current) {
 		String received = document.sourceOf(current);
-		if (received != null && LegacyCodec.fitsTheVanillaEditor(received)) {
+		boolean sound = received != null && LegacyCodec.fitsTheVanillaEditor(received)
+				&& received.indexOf(LegacyCodec.SECTION + "0") < 0;
+		if (sound) {
 			return received;
 		}
-		return LegacyCodec.encode(current, Layout.lay(current, config.layoutOptions()));
+		String written = LegacyCodec.encode(current, Layout.lay(current, config.layoutOptions()));
+		if (received != null && written.length() > QuillDocument.MAX_PAGE_CHARS
+				&& received.length() <= QuillDocument.MAX_PAGE_CHARS) {
+			return received;
+		}
+		return written;
 	}
 
 	/** Every page as a component, for the creative road. */

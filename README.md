@@ -123,6 +123,22 @@ nothing of somebody else's formatting is rearranged. And a server plugin that te
 copies it onto paper sees the paragraph it expects: a page full of line breaks came out on the paper
 double spaced, and a page with none comes out looking the way it was written.
 
+The same goes for the ink. Inside a book black and "no colour at all" are the same thing, which is
+why turning formatting off used to be spelled `§0` – the one code that resets everything and always
+means it. On a torn page, where the ink is the pale grey of an item's lore, black is black, and a
+sentence that merely followed a coloured word arrived unreadable. So text nobody formatted now
+leaves the book saying nothing whatsoever about its colour, which takes some care: `§r` means "back
+to the style in force at the last line break", so it is only written where the writer put that break
+in itself and knows it was plain. Pages that would otherwise have to fall back to black ink are
+written a second time, spending two characters at the end of any line that hands its formatting on –
+and, inside a paragraph the game breaks up by itself, writing the blank it breaks at plain, which
+costs nothing at all, since that blank is thrown away before anybody sees it.
+
+A page written by an older version of this mod mends itself the next time the book is signed: `§0`
+is read back as no colour rather than as a colour somebody chose, and a page carrying one is written
+again rather than handed back untouched. Nothing else is rewritten, and nothing about the page in
+the book changes – black and no colour draw the same on parchment.
+
 ### What it cannot do, and what creative mode does about it
 
 A link needs a `clickEvent`, and a `clickEvent` needs the page to be a text component rather than a

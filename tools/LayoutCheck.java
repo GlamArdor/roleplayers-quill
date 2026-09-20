@@ -51,6 +51,7 @@ public final class LayoutCheck {
 		checkStrayCode();
 		checkBlankRemainder();
 		checkReaderAgrees();
+		checkPlainStaysPlain();
 		checkPageBudget();
 
 		System.out.println();
@@ -874,8 +875,8 @@ public final class LayoutCheck {
 			List<Layout.LaidLine> lines = Layout.lay(page, Layout.Options.DEFAULT);
 			String written = LegacyCodec.encode(page, lines);
 
-			List<String> wanted = expected(page, lines);
-			List<String> got = resolved(written);
+			List<String> wanted = expected(page, lines, false);
+			List<String> got = resolved(written, false);
 
 			if (wanted.size() != got.size()) {
 				expect(false, alignment + ": the reader sees " + got.size()
@@ -899,27 +900,117 @@ public final class LayoutCheck {
 		}
 	}
 
-	/** Every visible character the editor draws, with the style it draws it in. */
-	private static List<String> expected(List<Paragraph> page, List<Layout.LaidLine> lines) {
+	/**
+	 * Every visible character the editor draws, with the style it draws it in.
+	 *
+	 * @param inkMatters whether "no colour of its own" and "black" are to be told apart. In a book
+	 *                   they are the same ink and there is nothing to tell apart; on an item, where
+	 *                   the server's torn-page plugin puts the text, black is a colour and no colour
+	 *                   is the pale grey of a tooltip.
+	 */
+	private static List<String> expected(List<Paragraph> page, List<Layout.LaidLine> lines, boolean inkMatters) {
 		List<String> out = new ArrayList<>();
 		for (Layout.LaidLine line : lines) {
 			Paragraph paragraph = page.get(line.paragraph);
 			for (int i = 0; i < line.marker.length(); i++) {
 				if (line.marker.charAt(i) != ' ') {
-					out.add(mark(line.marker.charAt(i), line.markerStyle));
+					out.add(mark(line.marker.charAt(i), line.markerStyle, inkMatters));
 				}
 			}
 			for (int i = line.start; i < line.contentEnd; i++) {
 				char c = paragraph.charAt(i);
 				if (c != ' ') {
-					out.add(mark(c, paragraph.styleAt(i)));
+					out.add(mark(c, paragraph.styleAt(i), inkMatters));
 				}
 			}
 			if (line.hyphen) {
-				out.add(mark('-', paragraph.styleAt(Math.max(line.start, line.contentEnd - 1))));
+				out.add(mark('-', paragraph.styleAt(Math.max(line.start, line.contentEnd - 1)), inkMatters));
 			}
 		}
 		return out;
+	}
+
+	/**
+	 * A page where formatting starts and stops, written and read back with the ink insisted upon.
+	 *
+	 * <p>Everything here is a single line, so every break on the page is one the encoder put in
+	 * itself and knows the meaning of. That is the condition under which it may write {@code §r},
+	 * and {@code §r} is the only code that says "nothing at all" rather than "black".
+	 */
+	private static void checkPlainStaysPlain() {
+		section("Text nobody formatted comes out carrying nothing");
+
+		List<Paragraph> page = new ArrayList<>();
+		Paragraph first = new Paragraph();
+		first.insert(first.length(), "123 ", QuillStyle.PLAIN);
+		first.insert(first.length(), "синий", QuillStyle.PLAIN.withColor(0x5555FF));
+		page.add(first);
+		page.add(new Paragraph());
+
+		Paragraph second = new Paragraph();
+		second.insert(second.length(), "синий", QuillStyle.PLAIN.withColor(0x5555FF));
+		second.insert(second.length(), " без форматирования", QuillStyle.PLAIN);
+		page.add(second);
+
+		Paragraph third = new Paragraph();
+		third.insert(third.length(), "жирный", QuillStyle.PLAIN.withBold(true));
+		third.insert(third.length(), " и снова обычный", QuillStyle.PLAIN);
+		page.add(third);
+
+		Paragraph title = new Paragraph("заголовок", QuillStyle.PLAIN.withBold(true).withColor(0xAA0000));
+		title.setAlignment(Alignment.CENTER);
+		page.add(title);
+		page.add(new Paragraph("строка под ним", QuillStyle.PLAIN));
+
+		// A paragraph the game will break up itself, coloured the whole way through, so that every
+		// break inside it is one nobody wrote down. What is in force at such a break is carried to
+		// the rest of the page – unless the blank it breaks at is written plain, which is invisible
+		// and free, and is the only reason the plain line underneath is still plain.
+		page.add(new Paragraph("длинный абзац в цвете который сам переносится игрой на вторую "
+				+ "строку и даже на третью", QuillStyle.PLAIN.withColor(0x5555FF).withItalic(true)));
+		page.add(new Paragraph("и обычная строка после него", QuillStyle.PLAIN));
+
+		List<Layout.LaidLine> lines = Layout.lay(page, Layout.Options.DEFAULT);
+		String written = LegacyCodec.encode(page, lines);
+		List<String> wanted = expected(page, lines, true);
+		List<String> got = resolved(written, true);
+
+		if (wanted.size() != got.size()) {
+			expect(false, "the reader sees " + got.size() + " characters where the editor shows "
+					+ wanted.size());
+			return;
+		}
+		int wrong = 0;
+		String firstWrong = "";
+		for (int i = 0; i < wanted.size(); i++) {
+			if (!wanted.get(i).equals(got.get(i))) {
+				if (wrong == 0) {
+					firstWrong = "editor " + wanted.get(i) + " but reader " + got.get(i);
+				}
+				wrong++;
+			}
+		}
+		expect(wrong == 0, wrong + " characters come out inked, first is " + firstWrong);
+		if (wrong == 0) {
+			System.out.println("  " + got.size() + " characters, and nothing black that was not asked to be");
+			for (String line : written.split("\n", -1)) {
+				System.out.println("  |" + line.replace(LegacyCodec.SECTION, '&') + "|");
+			}
+		}
+
+		// And a book written by an older version of this mod, which had no way of saying "nothing"
+		// and said "black" instead. It mends itself the next time the page is written, but only if
+		// reading it does not take the black for a colour somebody chose.
+		String old = "123 " + LegacyCodec.SECTION + "9синий\n\n"
+				+ LegacyCodec.SECTION + "9синий" + LegacyCodec.SECTION + "0 без форматирования";
+		List<Paragraph> read = LegacyCodec.decode(old);
+		String again = LegacyCodec.encode(read, Layout.lay(read, Layout.Options.DEFAULT));
+		expect(again.indexOf(LegacyCodec.SECTION + "0") < 0,
+				"an old page keeps its black ink: " + again.replace(LegacyCodec.SECTION, '&'));
+		expect(LegacyCodec.strip(again).equals(LegacyCodec.strip(old)),
+				"an old page lost text on the way: " + again.replace(LegacyCodec.SECTION, '&'));
+		System.out.println("  and an old page mends itself: |"
+				+ again.replace(LegacyCodec.SECTION, '&').replace("\n", "¶") + "|");
 	}
 
 	/**
@@ -932,7 +1023,7 @@ public final class LayoutCheck {
 	 * leaves its underline waiting to be restored by the next {@code §r}. That is modelled here,
 	 * because a checker that treats {@code §r} as plain agrees with a mistake instead of catching it.
 	 */
-	private static List<String> resolved(String written) {
+	private static List<String> resolved(String written, boolean inkMatters) {
 		List<String> out = new ArrayList<>();
 		boolean bold = false;
 		boolean italic = false;
@@ -988,18 +1079,20 @@ public final class LayoutCheck {
 			if (c == ' ') {
 				continue;
 			}
-			// Black and "no colour of its own" are the same ink in a book, so they compare equal.
+			// Black and "no colour of its own" are the same ink in a book, so unless the question is
+			// about the ink itself they compare equal.
 			out.add(c + "[" + (bold ? "b" : "") + (italic ? "i" : "") + (underlined ? "u" : "")
 					+ (strikethrough ? "s" : "") + (obfuscated ? "o" : "")
-					+ Math.max(0, colour) + "]");
+					+ (inkMatters ? colour : Math.max(0, colour)) + "]");
 		}
 		return out;
 	}
 
-	private static String mark(char c, QuillStyle style) {
+	private static String mark(char c, QuillStyle style, boolean inkMatters) {
+		int colour = style.legacyColorIndex();
 		return c + "[" + (style.bold() ? "b" : "") + (style.italic() ? "i" : "")
 				+ (style.underlined() ? "u" : "") + (style.strikethrough() ? "s" : "")
-				+ (style.obfuscated() ? "o" : "") + Math.max(0, style.legacyColorIndex()) + "]";
+				+ (style.obfuscated() ? "o" : "") + (inkMatters ? colour : Math.max(0, colour)) + "]";
 	}
 
 	/** A page with every switch and several colours crossing each other's paths. */

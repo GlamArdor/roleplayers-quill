@@ -186,9 +186,33 @@ public record QuillStyle(
 	/**
 	 * What a written page carries when it can be sent as a component: the same look, plus the click
 	 * and the tooltip that {@code §} codes have no room for.
+	 *
+	 * <p>Says only what the author said, and nothing more. A run left alone gets no colour and no
+	 * switch set to false: in the book that draws exactly as black on parchment, and anywhere the
+	 * book's text is carried to – a torn page's lore, a sign, a message in chat – it takes the ink
+	 * of the place it lands in instead of arriving as black on black. Spelling out a default is how
+	 * a page stops being ordinary text without looking any different.
 	 */
-	public Style toRichVanilla(int defaultColor) {
-		Style style = toVanilla(defaultColor);
+	public Style toRichVanilla() {
+		Style style = Style.EMPTY;
+		if (bold) {
+			style = style.withBold(true);
+		}
+		if (italic) {
+			style = style.withItalic(true);
+		}
+		if (underlined) {
+			style = style.withUnderline(true);
+		}
+		if (strikethrough) {
+			style = style.withStrikethrough(true);
+		}
+		if (obfuscated) {
+			style = style.withObfuscated(true);
+		}
+		if (color != INHERIT) {
+			style = style.withColor(color);
+		}
 		ClickEvent click = null;
 		if (url != null) {
 			try {

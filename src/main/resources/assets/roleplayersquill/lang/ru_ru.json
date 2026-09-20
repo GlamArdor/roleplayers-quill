@@ -117,6 +117,7 @@
 	"roleplayersquill.editor.counter": "%1$s/%2$s · %3$s/%4$s",
 	"roleplayersquill.editor.overflow": "не влезло: %s",
 	"roleplayersquill.editor.unicodefont": "Включён юникодный шрифт: вёрстка сойдётся только у вас",
+	"roleplayersquill.editor.oldink": "Книга написана старой версией: сохраните её, и вырванные страницы будут читаться",
 	"roleplayersquill.tool.reflow": "Разлить лишнее на следующие страницы",
 	"roleplayersquill.editor.saved": "Книга записана",
 	"roleplayersquill.tool.save": "Сохранить (Ctrl+S)",

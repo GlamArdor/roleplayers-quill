@@ -25,6 +25,14 @@ import java.util.List;
  * the fewest that get from the style now in force to the one wanted. A colour code resets the
  * switches, which means turning bold off is spelled either as the colour again or as {@code §r},
  * and picking the shorter of the two is worth a line of text per page on a heavily formatted one.
+ *
+ * <h2>Plain is not black</h2>
+ *
+ * <p>Inside a book the two are the same thing: the ink a page is written in is black, so text with
+ * no colour of its own and text coloured {@code §0} come out identical. Elsewhere they are not. The
+ * server's torn-page plugin lifts what is written here onto an item, where the default ink is the
+ * pale grey of a tooltip – and a page that said {@code §0} to mean "nothing" arrives there as black
+ * on black. So text the author left alone has to leave here having said nothing about its colour.
  */
 public final class LegacyCodec {
 	public static final char SECTION = '§';
@@ -49,16 +57,22 @@ public final class LegacyCodec {
 	 * @param lines the lines {@link Layout} broke them into, already padded
 	 */
 	public static String encode(List<Paragraph> page, List<Layout.LaidLine> lines) {
-		Writer writer = new Writer();
-		int last = lines.size();
-		// Empty lines hanging off the end are not written. Nothing is drawn on them, so the reader
-		// never knew they were there – but the vanilla editor is a text box that counts lines rather
-		// than a page that draws them, and it is built with room for exactly fourteen. A page of
-		// fourteen lines followed by an empty one is fifteen lines to it: it grows a scrollbar, the
-		// text slides under itself, and that is what somebody without this mod opens the book to.
-		while (last > 0 && isBlank(lines.get(last - 1))) {
-			last--;
+		Writer written = write(page, lines, false);
+		if (written.inked() == 0) {
+			return written.toString();
 		}
+		// Somewhere on this page "no formatting at all" had to be spelled as black ink, because §r
+		// would have meant something else where it stood. Written again, this time spending two
+		// characters at the end of every line that would otherwise hand its formatting on, §r means
+		// what it says and the ink is not needed. Worth doing only where it buys something, which is
+		// why the frugal attempt comes first.
+		Writer clean = write(page, lines, true);
+		return clean.inked() < written.inked() ? clean.toString() : written.toString();
+	}
+
+	private static Writer write(List<Paragraph> page, List<Layout.LaidLine> lines, boolean keepResetPlain) {
+		Writer writer = new Writer(keepResetPlain);
+		int last = worthWriting(lines);
 		int at = 0;
 		boolean started = false;
 		while (at < last) {
@@ -83,7 +97,7 @@ public final class LegacyCodec {
 				// a page rather than draw it can see it. The server's torn-page plugin turns each one
 				// into a line of its own, so a page written here came out double spaced while the same
 				// page typed by anybody else came out right.
-				encodeStraight(writer, page.get(index), lines.get(at).start, lines.get(after - 1).contentEnd);
+				encodeStraight(writer, page.get(index), lines, at, after);
 			} else {
 				for (int i = at; i < after; i++) {
 					if (i > at) {
@@ -94,7 +108,24 @@ public final class LegacyCodec {
 			}
 			at = after;
 		}
-		return writer.toString();
+		return writer;
+	}
+
+	/**
+	 * How many of the laid lines are worth putting on the page.
+	 *
+	 * <p>Empty lines hanging off the end are not written. Nothing is drawn on them, so the reader
+	 * never knew they were there – but the vanilla editor is a text box that counts lines rather than
+	 * a page that draws them, and it is built with room for exactly fourteen. A page of fourteen
+	 * lines followed by an empty one is fifteen lines to it: it grows a scrollbar, the text slides
+	 * under itself, and that is what somebody without this mod opens the book to.
+	 */
+	public static int worthWriting(List<Layout.LaidLine> lines) {
+		int last = lines.size();
+		while (last > 0 && isBlank(lines.get(last - 1))) {
+			last--;
+		}
+		return last;
 	}
 
 	/**
@@ -105,7 +136,7 @@ public final class LegacyCodec {
 	 * breaks written into it, and writing them anyway is the difference between a book that is
 	 * ordinary and a book that only looks ordinary.
 	 */
-	private static boolean needsNoPixels(List<Layout.LaidLine> lines, int from, int to) {
+	public static boolean needsNoPixels(List<Layout.LaidLine> lines, int from, int to) {
 		for (int i = from; i < to; i++) {
 			Layout.LaidLine line = lines.get(i);
 			if (!line.leftPad.isEmpty() || line.justified() || !line.marker.isEmpty()
@@ -116,10 +147,35 @@ public final class LegacyCodec {
 		return true;
 	}
 
-	/** A paragraph written as one run of text, with its codes and without a break inside it. */
-	private static void encodeStraight(Writer writer, Paragraph paragraph, int from, int to) {
-		for (int i = from; i < to; i++) {
-			writer.style(paragraph.styleAt(i));
+	/**
+	 * A paragraph written as one run of text, with its codes and without a break inside it.
+	 *
+	 * <p>The breaks are still there – the game puts them in as it draws, at the places this mod has
+	 * just laid the paragraph out at, which is the whole reason it may be written this way. They are
+	 * pointed out to the writer as it passes them, because what is in force at a break is what
+	 * {@code §r} means on the far side of it.
+	 *
+	 * <p>And usually they can be disarmed. A paragraph breaks at a blank, and the blank it breaks at
+	 * is thrown away – the game draws neither its ink nor its width. Its formatting is therefore
+	 * free, and a blank written plain hands nothing over the break, which leaves {@code §r} meaning
+	 * what it says for the whole page below. Not always free, mind: a bold blank is a pixel wider
+	 * than a plain one, and one that is underlined or struck through is drawn after all.
+	 */
+	private static void encodeStraight(Writer writer, Paragraph paragraph,
+			List<Layout.LaidLine> lines, int at, int after) {
+		int to = lines.get(after - 1).contentEnd;
+		int next = at + 1;
+		for (int i = lines.get(at).start; i < to; i++) {
+			if (next < after && i == lines.get(next).start) {
+				writer.noteWrap();
+				next++;
+			}
+			QuillStyle style = paragraph.styleAt(i);
+			if (next < after && i >= lines.get(next - 1).contentEnd && writer.wouldSayPlain()
+					&& !style.bold() && !style.marksBlanks()) {
+				style = QuillStyle.PLAIN;
+			}
+			writer.style(style);
 			writer.raw(String.valueOf(paragraph.charAt(i)));
 		}
 	}
@@ -271,12 +327,31 @@ public final class LegacyCodec {
 	/** The state machine that keeps the codes down to the ones that change something. */
 	public static final class Writer {
 		private final StringBuilder out = new StringBuilder();
+		/** Whether to spend two characters at a line break to keep {@code §r} meaning what it says. */
+		private final boolean keepResetPlain;
 		private int color = -1;
 		private boolean bold;
 		private boolean italic;
 		private boolean underlined;
 		private boolean strikethrough;
 		private boolean obfuscated;
+		/** Whether {@code §r} written here would mean plain. True at the top of a page. */
+		private boolean resetIsPlain = true;
+		/** How often plain text had to be written as black ink instead. */
+		private int inked;
+
+		public Writer() {
+			this(false);
+		}
+
+		public Writer(boolean keepResetPlain) {
+			this.keepResetPlain = keepResetPlain;
+		}
+
+		/** How often this page had to say "black" where it meant "nothing". */
+		public int inked() {
+			return inked;
+		}
 
 		/**
 		 * Writes text, never a bare section sign.
@@ -300,14 +375,50 @@ public final class LegacyCodec {
 			}
 		}
 
+		/**
+		 * Ends a line, and with it settles what {@code §r} will mean on the next one.
+		 *
+		 * <p>Whatever is in force at a break is handed to the rest of the page as its reset style, so
+		 * a line that ends in the middle of a colour takes {@code §r} away from every line after it.
+		 * Two characters spent here buy it back – but only on a page that was shown to need it, and
+		 * only where {@code §r} still means plain, since that is the only thing that can undo it.
+		 */
 		public void newLine() {
+			if (keepResetPlain && resetIsPlain && !isPlain()) {
+				code('r');
+				clearSwitches();
+				color = -1;
+			}
 			out.append('\n');
+			resetIsPlain = isPlain();
+		}
+
+		/**
+		 * A break the game will make by itself, in the middle of a paragraph written straight through.
+		 *
+		 * <p>Taken only as bad news. Where the style at such a break is plain the reset style is left
+		 * as it was rather than called plain again: this mod's idea of where the game wraps is a very
+		 * good one, but {@code §r} is not a thing to spend on a very good idea, and a break that is
+		 * really a line or two along would otherwise put the colour back rather than take it off.
+		 */
+		public void noteWrap() {
+			resetIsPlain = resetIsPlain && isPlain();
+		}
+
+		/** Whether plain text written here and now would come out saying nothing about its colour. */
+		public boolean wouldSayPlain() {
+			return keepResetPlain && resetIsPlain;
+		}
+
+		/** Whether nothing at all is in force: no switch, and no colour code written yet. */
+		private boolean isPlain() {
+			return color < 0 && !bold && !italic && !underlined && !strikethrough && !obfuscated;
 		}
 
 		/**
 		 * Moves the active formatting to this style, writing as little as will do it.
 		 *
-		 * <h2>Why there is no {@code §r} here</h2>
+		 * <h2>Why {@code §r} cannot simply be written</h2>
 		 *
 		 * <p>Because {@code §r} does not mean "plain". It means "back to the style this piece of
 		 * text started in", and once a page has been wrapped that is not plain at all:
@@ -321,8 +432,17 @@ public final class LegacyCodec {
 		 * without either of them being able to notice.
 		 *
 		 * <p>A colour code has no such problem: it sets the style outright, switches and all. Black
-		 * is what a book is written in anyway, so turning formatting off costs exactly what
-		 * {@code §r} used to and always means it.
+		 * is what a book is written in anyway, so turning formatting off that way costs exactly what
+		 * {@code §r} costs and always means something.
+		 *
+		 * <h2>Why there is one after all</h2>
+		 *
+		 * <p>Because black is a colour, and a page does leave the book: the torn-page plugin puts
+		 * what is written here into an item's lore, where the ink is pale grey and black is
+		 * unreadable. Only {@code §r} says "no colour", so it is used wherever it is safe – which is
+		 * wherever the reset style at that point is known to be plain, and that is something this
+		 * writer can know, because it is the one putting the breaks in. Where it is not safe, black
+		 * ink is still the answer, and {@link #encode} notices and tries the page again.
 		 */
 		public void style(QuillStyle target) {
 			int index = target.legacyColorIndex();
@@ -336,11 +456,23 @@ public final class LegacyCodec {
 			// Nothing has been written yet and nothing is wanted: a page of plain text starts with
 			// no codes at all, as it always did.
 			boolean untouched = color == -1 && want == 0;
+			// Not "black text", which somebody may well have asked for, but text carrying no
+			// formatting whatsoever – the one thing a § code cannot name and §r can.
+			boolean plainWanted = index < 0 && !target.bold() && !target.italic()
+					&& !target.underlined() && !target.strikethrough() && !target.obfuscated();
 
 			if (removing || (want != color && !untouched)) {
-				code(COLOR_CODES[want]);
+				if (plainWanted && resetIsPlain) {
+					code('r');
+					color = -1;
+				} else {
+					if (plainWanted) {
+						inked++;
+					}
+					code(COLOR_CODES[want]);
+					color = want;
+				}
 				clearSwitches();
-				color = want;
 			}
 
 			if (target.bold() && !bold) {
@@ -649,6 +781,15 @@ public final class LegacyCodec {
 	private static QuillStyle applyCode(QuillStyle style, char code) {
 		for (int i = 0; i < COLOR_CODES.length; i++) {
 			if (COLOR_CODES[i] == code) {
+				if (i == 0) {
+					// Black is read as no colour at all. On a page there is nothing to tell them
+					// apart – black is the ink a book is printed in – and the only reason anyone
+					// ever wrote §0 on one was to mean "and now nothing", this mod included, for as
+					// long as it had no better way of saying so. Reading it as a colour somebody
+					// chose made that old habit stick: the page came back black, it was written
+					// black again, and it stayed unreadable on a torn page for ever.
+					return QuillStyle.PLAIN;
+				}
 				Integer value = QuillStyle.LEGACY_COLORS[i].getColorValue();
 				return QuillStyle.PLAIN.withColor(value == null ? QuillStyle.INHERIT : value);
 			}
