@@ -553,6 +553,12 @@ public final class BookIO {
 	 * library: "the book where I wrote about the Flavian chapters" is a question about a hundred and
 	 * fifty files rather than about the one in hand. They are small, and there are at most a hundred
 	 * and fifty of them, so reading the lot is cheaper than being clever about it.
+	 *
+	 * <p>One book, though, is one book. A draft is filed under the pages the server holds, so every
+	 * time a book is written back it is filed afresh and the one before it stays where it was: a
+	 * book worked on all evening leaves a file per save, all of them the same book. Only the newest
+	 * of each is a book here – anything older is an earlier version of it, which is what the history
+	 * is for and not what a search through the shelves should be answering with.
 	 */
 	public static List<Kept> allBooks() {
 		List<Kept> out = new ArrayList<>();
@@ -578,7 +584,15 @@ public final class BookIO {
 			RoleplayersQuill.LOGGER.debug("Could not read the drafts", error);
 		}
 		out.sort((a, b) -> Long.compare(b.when(), a.when()));
-		return out;
+
+		List<Kept> newest = new ArrayList<>(out.size());
+		java.util.Set<String> seen = new java.util.HashSet<>();
+		for (Kept book : out) {
+			if (seen.add(book.document().id())) {
+				newest.add(book);
+			}
+		}
+		return newest;
 	}
 
 	/** What to call a book in a list: its title, or the first thing written in it. */

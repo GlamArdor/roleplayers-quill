@@ -456,17 +456,18 @@ public final class LegacyCodec {
 			// Nothing has been written yet and nothing is wanted: a page of plain text starts with
 			// no codes at all, as it always did.
 			boolean untouched = color == -1 && want == 0;
-			// Not "black text", which somebody may well have asked for, but text carrying no
-			// formatting whatsoever – the one thing a § code cannot name and §r can.
-			boolean plainWanted = index < 0 && !target.bold() && !target.italic()
-					&& !target.underlined() && !target.strikethrough() && !target.obfuscated();
+			// Not "black text", which somebody may well have asked for, but text with no colour of
+			// its own – the one thing a § code cannot name and §r can. The switches are no business
+			// of this: a bold blank with no colour is as much "no colour" as a letter is, and it is
+			// the commonest of the lot, since that is what a list marker is padded with.
+			boolean inkless = index < 0;
 
 			if (removing || (want != color && !untouched)) {
-				if (plainWanted && resetIsPlain) {
+				if (inkless && resetIsPlain) {
 					code('r');
 					color = -1;
 				} else {
-					if (plainWanted) {
+					if (inkless) {
 						inked++;
 					}
 					code(COLOR_CODES[want]);
@@ -803,6 +804,27 @@ public final class LegacyCodec {
 			case 'r' -> QuillStyle.PLAIN;
 			default -> style;
 		};
+	}
+
+	/**
+	 * How often a page says "black", which is how it used to say "nothing at all".
+	 *
+	 * <p>The measure of whether a page is worth writing again. Black is invisible on parchment and
+	 * unreadable on a torn page, so a page carrying any is a page to mend – but only if writing it
+	 * again carries less, because a book offered for mending that cannot be mended would be offered
+	 * every time it was opened for the rest of its life.
+	 */
+	public static int blackInk(String page) {
+		int count = 0;
+		for (int i = 0; i + 1 < page.length(); i++) {
+			if (page.charAt(i) == SECTION) {
+				if (page.charAt(i + 1) == '0') {
+					count++;
+				}
+				i++;
+			}
+		}
+		return count;
 	}
 
 	/** Strips every code, for counting words or searching. */

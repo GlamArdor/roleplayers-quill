@@ -1361,14 +1361,23 @@ public final class PageEditor {
 	 */
 	private String pageString(List<Paragraph> current) {
 		String received = document.sourceOf(current);
-		boolean sound = received != null && LegacyCodec.fitsTheVanillaEditor(received)
-				&& received.indexOf(LegacyCodec.SECTION + "0") < 0;
-		if (sound) {
+		if (received == null) {
+			return LegacyCodec.encode(current, Layout.lay(current, config.layoutOptions()));
+		}
+		boolean fits = LegacyCodec.fitsTheVanillaEditor(received);
+		int ink = LegacyCodec.blackInk(received);
+		if (fits && ink == 0) {
 			return received;
 		}
 		String written = LegacyCodec.encode(current, Layout.lay(current, config.layoutOptions()));
-		if (received != null && written.length() > QuillDocument.MAX_PAGE_CHARS
+		if (written.length() > QuillDocument.MAX_PAGE_CHARS
 				&& received.length() <= QuillDocument.MAX_PAGE_CHARS) {
+			return received;
+		}
+		if (fits && LegacyCodec.blackInk(written) >= ink) {
+			// Nothing to be had. Some ink cannot be washed out – a page the game breaks up itself in
+			// the middle of something bold has nowhere to put a §r – and a page rewritten for no gain
+			// is somebody else's page rewritten for no gain.
 			return received;
 		}
 		return written;

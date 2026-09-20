@@ -1009,21 +1009,30 @@ public class QuillEditScreen extends Screen {
 	 * came in as only where reading it and writing it again land on the same page exactly – which is
 	 * the common case and not the certain one, and a book whose pages all fell just short of it said
 	 * nothing at all while quietly needing mending on every one of them.
+	 *
+	 * <p>And asked properly: not "is there ink on this page" but "would writing it again take some
+	 * off". Some cannot be taken off – a paragraph the game breaks up in the middle of something
+	 * bold has nowhere to put a {@code §r} – and a book that cannot be mended must not be offered
+	 * for mending, or it says the same thing every time it is opened for the rest of its life.
 	 */
 	private void offerToMend() {
 		if (mendOffered) {
 			return;
 		}
 		mendOffered = true;
-		boolean old = false;
 		for (String page : original) {
-			old |= page.indexOf(LegacyCodec.SECTION + "0") >= 0;
+			int ink = LegacyCodec.blackInk(page);
+			if (ink == 0) {
+				continue;
+			}
+			List<Paragraph> read = LegacyCodec.decode(page);
+			String again = LegacyCodec.encode(read, Layout.lay(read, editor.layoutOptions()));
+			if (LegacyCodec.blackInk(again) < ink) {
+				editor.touch();
+				say(Text.translatable("roleplayersquill.editor.oldink"), 10000L);
+				return;
+			}
 		}
-		if (!old) {
-			return;
-		}
-		editor.touch();
-		say(Text.translatable("roleplayersquill.editor.oldink"), 10000L);
 	}
 
 	@Override

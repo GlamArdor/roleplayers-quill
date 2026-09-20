@@ -76,6 +76,43 @@ public final class BookPreview {
 		}
 	}
 
+	/**
+	 * How far along the line a character of the paragraph sits, in pixels from the line's left edge.
+	 *
+	 * <p>Walked exactly as {@link #drawLine} walks it – the padding, the marker, the leader and the
+	 * widened gaps of a justified line all move the text along, and a mark drawn under it that
+	 * counted only the letters would sit under the wrong word on precisely the lines that are laid
+	 * out most carefully.
+	 *
+	 * @param index a character index into the paragraph, clamped to the line it is asked about
+	 */
+	public static float offsetOf(Layout.LaidLine line, java.util.List<Paragraph> page, int index) {
+		Paragraph paragraph = page.get(line.paragraph);
+		float at = line.leftPad.width();
+		if (line.frame.present()) {
+			at += line.frame.textLeft();
+		}
+		if (!line.marker.isEmpty()) {
+			at += Widths.widthOf(line.marker, line.markerStyle.bold()) + line.markerPad.width();
+		}
+		for (int i = line.start; i < Math.min(index, line.contentEnd); i++) {
+			if (i == line.leaderAt) {
+				at += line.leaderPad.width();
+				if (line.leaderDots > 0) {
+					at += Widths.widthOf(".".repeat(line.leaderDots), paragraph.styleAt(i).bold());
+				}
+				continue;
+			}
+			Widths.Padding pad = paragraph.charAt(i) == ' ' ? line.padFor(i) : null;
+			if (pad != null && (pad.count() != 1 || pad.bold() != 0)) {
+				at += pad.width();
+				continue;
+			}
+			at += Widths.advance(paragraph.charAt(i), paragraph.styleAt(i).bold());
+		}
+		return at;
+	}
+
 	private static float flush(DrawContext context, TextRenderer textRenderer, StringBuilder run,
 			@Nullable QuillStyle style, float x, int y) {
 		if (run.isEmpty()) {

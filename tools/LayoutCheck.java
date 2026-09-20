@@ -962,6 +962,16 @@ public final class LayoutCheck {
 		page.add(title);
 		page.add(new Paragraph("строка под ним", QuillStyle.PLAIN));
 
+		// A list item. The blank that holds the text clear of the bullet is bold, because that is how
+		// a run of blanks reaches an odd number of pixels – and "bold with no colour" is a thing a §
+		// code cannot say either, so it used to be written as black bold and put ink on every list
+		// in every book.
+		Paragraph item = new Paragraph();
+		item.insert(item.length(), "Десница:", QuillStyle.PLAIN.withColor(0xAA0000));
+		item.insert(item.length(), " Тар", QuillStyle.PLAIN);
+		item.setList(ListStyle.BULLET);
+		page.add(item);
+
 		// A paragraph the game will break up itself, coloured the whole way through, so that every
 		// break inside it is one nobody wrote down. What is in force at such a break is carried to
 		// the rest of the page – unless the blank it breaks at is written plain, which is invisible
@@ -991,6 +1001,10 @@ public final class LayoutCheck {
 			}
 		}
 		expect(wrong == 0, wrong + " characters come out inked, first is " + firstWrong);
+		// Not one drop of it anywhere on the page, visible or not. A page that carries §0 where it
+		// did not have to is a page that says it was written by an older version for ever after.
+		expect(written.indexOf(LegacyCodec.SECTION + "0") < 0,
+				"black ink was spent on: " + written.replace(LegacyCodec.SECTION, '&').replace("\n", "¶"));
 		if (wrong == 0) {
 			System.out.println("  " + got.size() + " characters, and nothing black that was not asked to be");
 			for (String line : written.split("\n", -1)) {
