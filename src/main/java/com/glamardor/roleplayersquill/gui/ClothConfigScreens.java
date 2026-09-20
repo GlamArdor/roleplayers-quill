@@ -104,6 +104,20 @@ final class ClothConfigScreens {
 		correct.addEntry(toggle(entries, "auto_capitals", config.autoCapitals, defaults.autoCapitals,
 				v -> config.autoCapitals = v));
 
+		// The word lists are not here to be chosen between: they are downloaded on demand, and the
+		// switches only say which languages this book is likely to be written in.
+		ConfigCategory spelling = builder.getOrCreateCategory(Text.translatable("roleplayersquill.category.spelling"));
+		spelling.addEntry(toggle(entries, "spell_check", config.spellCheck, defaults.spellCheck,
+				v -> config.spellCheck = v));
+		spelling.addEntry(toggle(entries, "spell_skip_capitals", config.spellSkipCapitals,
+				defaults.spellSkipCapitals, v -> config.spellSkipCapitals = v));
+		spelling.addEntry(toggle(entries, "spell_russian", config.spellRussian, defaults.spellRussian,
+				v -> config.spellRussian = v));
+		spelling.addEntry(toggle(entries, "spell_english", config.spellEnglish, defaults.spellEnglish,
+				v -> config.spellEnglish = v));
+		spelling.addEntry(toggle(entries, "spell_auto_download", config.spellAutoDownload,
+				defaults.spellAutoDownload, v -> config.spellAutoDownload = v));
+
 		ConfigCategory paste = builder.getOrCreateCategory(Text.translatable("roleplayersquill.category.paste"));
 		paste.addEntry(toggle(entries, "auto_paste_pages", config.autoPasteMultiPage, defaults.autoPasteMultiPage,
 				v -> config.autoPasteMultiPage = v));

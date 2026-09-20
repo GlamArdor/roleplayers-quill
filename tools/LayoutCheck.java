@@ -52,6 +52,7 @@ public final class LayoutCheck {
 		checkBlankRemainder();
 		checkReaderAgrees();
 		checkPlainStaysPlain();
+		checkHeldTogether();
 		checkPageBudget();
 
 		System.out.println();
@@ -1184,6 +1185,118 @@ public final class LayoutCheck {
 				"Короткая",
 				"Строка ровно такой длины, чтобы почти влезть в страницу целиком",
 				longRussian());
+	}
+
+	/**
+	 * The blank that holds two words together, checked the only way it can be: by reading the page
+	 * back the way the game draws it and looking for the pair on one line.
+	 *
+	 * <p>Nothing about it survives onto the page – it is written as an ordinary space – so what is
+	 * being checked is not a character but a decision: that the line breaks were written out wherever
+	 * leaving them to the game would have parted the pair, and left to the game wherever it would
+	 * not. Both halves matter. Always writing them would cost every such paragraph its plain
+	 * appearance, which is the thing the torn-page plugin reads.
+	 */
+	private static void checkHeldTogether() {
+		section("A blank that holds two words together is never broken at");
+		int straight = 0;
+		int spelledOut = 0;
+		for (int words = 1; words <= 24; words++) {
+			Paragraph paragraph = new Paragraph(
+					"слово ".repeat(words) + "10" + Widths.NOBREAK + "кг " + longRussian(), QuillStyle.PLAIN);
+			List<Paragraph> page = List.of(paragraph);
+			List<Layout.LaidLine> lines = Layout.lay(page, Layout.Options.DEFAULT);
+			String written = LegacyCodec.encode(page, lines);
+
+			expect(written.indexOf(Widths.NOBREAK) < 0,
+					"the unbreakable blank itself was written to the page");
+			boolean together = false;
+			for (String line : drawnLines(written)) {
+				if (line.contains("10 кг")) {
+					together = true;
+				}
+			}
+			expect(together, "\"10 кг\" was split across two lines after " + words + " words");
+			expect(wrapLikeTheGame(written) == lines.size(),
+					"laid out " + lines.size() + " lines, the game would show " + wrapLikeTheGame(written));
+			if (written.indexOf('\n') < 0) {
+				straight++;
+			} else {
+				spelledOut++;
+			}
+		}
+		System.out.println("  " + straight + " written straight through, "
+				+ spelledOut + " with the breaks written out");
+		expect(straight > 0, "every paragraph with an unbreakable blank had its breaks written out");
+
+		section("A paragraph without one is written exactly as it was before");
+		Paragraph plain = new Paragraph(longRussian(), QuillStyle.PLAIN);
+		List<Paragraph> page = List.of(plain);
+		String written = LegacyCodec.encode(page, Layout.lay(page, Layout.Options.DEFAULT));
+		expect(written.indexOf('\n') < 0, "an ordinary paragraph grew a line break: " + written);
+	}
+
+	/** A written page as the lines the game draws, for looking at what ended up next to what. */
+	private static List<String> drawnLines(String page) {
+		List<String> out = new ArrayList<>();
+		StringBuilder line = new StringBuilder();
+		boolean bold = false;
+		float total = 0.0f;
+		float beforeSpace = 0.0f;
+		float spaceWidth = 0.0f;
+		int spaceAt = -1;
+		boolean anything = false;
+
+		for (int i = 0; i < page.length(); i++) {
+			char c = page.charAt(i);
+			if (c == LegacyCodec.SECTION && i + 1 < page.length()) {
+				char code = Character.toLowerCase(page.charAt(i + 1));
+				if (code == 'l') {
+					bold = true;
+				} else if (code == 'r' || "0123456789abcdef".indexOf(code) >= 0) {
+					bold = false;
+				}
+				i++;
+				continue;
+			}
+			if (c == '\n') {
+				out.add(line.toString());
+				line.setLength(0);
+				total = 0.0f;
+				spaceAt = -1;
+				anything = false;
+				continue;
+			}
+			float advance = advance(c, bold);
+			if (c == ' ') {
+				spaceAt = line.length();
+				beforeSpace = total;
+				spaceWidth = advance;
+			}
+			line.append(c);
+			total += advance;
+			if (anything && total > PAGE) {
+				if (spaceAt >= 0) {
+					out.add(line.substring(0, spaceAt));
+					String rest = line.substring(spaceAt + 1);
+					line.setLength(0);
+					line.append(rest);
+					total = total - beforeSpace - spaceWidth;
+				} else {
+					String last = String.valueOf(line.charAt(line.length() - 1));
+					out.add(line.substring(0, line.length() - 1));
+					line.setLength(0);
+					line.append(last);
+					total = advance;
+				}
+				spaceAt = -1;
+				anything = total != 0.0f;
+				continue;
+			}
+			anything |= advance != 0.0f;
+		}
+		out.add(line.toString());
+		return out;
 	}
 
 	private static String longRussian() {

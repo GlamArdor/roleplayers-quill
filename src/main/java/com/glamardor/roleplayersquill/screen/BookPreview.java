@@ -66,7 +66,10 @@ public final class BookPreview {
 				at += pad.width();
 				continue;
 			}
-			run.append(paragraph.charAt(i));
+			// The blank that holds two words together is drawn as the space it will be: the font has
+			// no glyph of its own for it, and what has no glyph is drawn as a missing-glyph box.
+			char c = paragraph.charAt(i);
+			run.append(c == Widths.NOBREAK ? ' ' : c);
 		}
 		at = flush(context, textRenderer, run, runStyle, at, y);
 

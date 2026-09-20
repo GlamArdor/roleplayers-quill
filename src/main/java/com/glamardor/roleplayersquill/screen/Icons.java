@@ -394,6 +394,20 @@ public final class Icons {
 		context.fill(x + 10, y + 10, x + 13, y + 13, color);
 	};
 
+	/**
+	 * A letter with the wavy line under it, which is what a spelling mistake looks like everywhere.
+	 *
+	 * <p>The wave is drawn rather than written: a row of two-pixel steps, which at this size reads as
+	 * a wave where a smooth one would read as a smudge.
+	 */
+	public static final Icon SPELL = (context, x, y, color) -> {
+		glyph(context, "A", null, x, y - 3, color);
+		for (int i = 0; i < 12; i += 4) {
+			context.fill(x + 2 + i, y + 12, x + 4 + i, y + 13, color);
+			context.fill(x + 4 + i, y + 11, x + 6 + i, y + 12, color);
+		}
+	};
+
 	public static final Icon CLEAR = (context, x, y, color) -> glyph(context, "×", null, x, y, color);
 	public static final Icon COLOR_SWATCH = (context, x, y, color) -> {
 		context.drawBorder(x + 2, y + 2, 12, 12, 0xFF000000);

@@ -88,7 +88,7 @@ public final class LegacyCodec {
 			}
 			started = true;
 
-			if (needsNoPixels(lines, at, after)) {
+			if (needsNoPixels(page, lines, at, after)) {
 				// Written the way somebody without this mod would have written it: straight through,
 				// with the break at the end of the paragraph and nowhere else, because the game wraps
 				// it at the same places this mod just laid it out at.
@@ -136,7 +136,7 @@ public final class LegacyCodec {
 	 * breaks written into it, and writing them anyway is the difference between a book that is
 	 * ordinary and a book that only looks ordinary.
 	 */
-	public static boolean needsNoPixels(List<Layout.LaidLine> lines, int from, int to) {
+	public static boolean needsNoPixels(List<Paragraph> page, List<Layout.LaidLine> lines, int from, int to) {
 		for (int i = from; i < to; i++) {
 			Layout.LaidLine line = lines.get(i);
 			if (!line.leftPad.isEmpty() || line.justified() || !line.marker.isEmpty()
@@ -144,7 +144,64 @@ public final class LegacyCodec {
 				return false;
 			}
 		}
-		return true;
+		Paragraph paragraph = page.get(lines.get(from).paragraph);
+		return !holdsWordsTogether(paragraph) || gameBreaksWhereWeDid(paragraph, lines, from, to);
+	}
+
+	/** Whether anything in this paragraph is a blank the reader must not have a line break at. */
+	private static boolean holdsWordsTogether(Paragraph paragraph) {
+		return paragraph.text().indexOf(Widths.NOBREAK) >= 0;
+	}
+
+	/**
+	 * Whether the game, left to wrap this paragraph itself, would break it exactly where we did.
+	 *
+	 * <p>Asked only of a paragraph holding an unbreakable blank, because that is the only thing that
+	 * can make the two disagree. The blank goes onto the page as an ordinary space – there is nothing
+	 * else four pixels wide that a book can hold – and the game is perfectly willing to end a line at
+	 * it. Usually it has no reason to: the pair sits in the middle of a line and the break falls
+	 * somewhere else entirely, and then the paragraph can still be written straight through, which is
+	 * what keeps a torn-out page reading as one paragraph rather than as a column of lines.
+	 *
+	 * <p>Where it would disagree, the answer is no and the breaks are written out. That costs this
+	 * paragraph the plain writing and keeps the pair together, which is what was asked for.
+	 *
+	 * <p>The wrapping simulated here is {@code TextHandler.LineBreakingVisitor}'s, the same one
+	 * {@link Layout} follows: a blank is noted as a place to end before the width is tested.
+	 */
+	private static boolean gameBreaksWhereWeDid(Paragraph paragraph, List<Layout.LaidLine> lines,
+			int from, int to) {
+		int length = paragraph.length();
+		int cursor = lines.get(from).start;
+		int line = from;
+		while (true) {
+			int lastBlank = -1;
+			int scan = cursor;
+			float width = 0.0f;
+			while (scan < length) {
+				char c = paragraph.charAt(scan);
+				float advance = Widths.advance(c, paragraph.styleAt(scan).bold());
+				if (c == ' ' || c == Widths.NOBREAK) {
+					lastBlank = scan;
+				}
+				if (width + advance > Layout.PAGE_WIDTH && scan > cursor) {
+					break;
+				}
+				width += advance;
+				scan++;
+			}
+			if (scan >= length) {
+				return line == to - 1;
+			}
+			int next = lastBlank > cursor ? lastBlank + 1
+					: lastBlank == cursor ? cursor + 1
+					: Math.max(scan, cursor + 1);
+			line++;
+			if (line >= to || lines.get(line).start != next) {
+				return false;
+			}
+			cursor = next;
+		}
 	}
 
 	/**
@@ -361,15 +418,21 @@ public final class LegacyCodec {
 		 * like a different book. The editor refuses to type one, but a document read from an older
 		 * draft or imported from a file can still be carrying one, and this is the last place to
 		 * catch it.
+		 *
+		 * <p>An unbreakable blank goes down as an ordinary space, which is all a book can hold. What
+		 * made it unbreakable was decided before this: the paragraph it stands in was written with
+		 * its own line breaks, so the game never gets the chance to end a line there.
 		 */
 		public void raw(String text) {
-			if (text.indexOf(SECTION) < 0) {
+			if (text.indexOf(SECTION) < 0 && text.indexOf(Widths.NOBREAK) < 0) {
 				out.append(text);
 				return;
 			}
 			for (int i = 0; i < text.length(); i++) {
 				char c = text.charAt(i);
-				if (c != SECTION) {
+				if (c == Widths.NOBREAK) {
+					out.append(' ');
+				} else if (c != SECTION) {
 					out.append(c);
 				}
 			}

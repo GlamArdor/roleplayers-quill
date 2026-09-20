@@ -185,9 +185,19 @@ public final class BookSearch {
 		if (from > haystack.length()) {
 			return -1;
 		}
+		// A blank is a blank to whoever is looking for it. The one that holds two words together is a
+		// different character, and nobody types it into a search box – but it is the same space on the
+		// page, and a search that could not find "10 kg" because of it would be a search that is right
+		// and useless. Neither string changes length, so every index still points where it did.
+		String text = plainBlanks(haystack);
+		String wanted = plainBlanks(needle);
 		if (matchCase) {
-			return haystack.indexOf(needle, from);
+			return text.indexOf(wanted, from);
 		}
-		return haystack.toLowerCase(Locale.ROOT).indexOf(needle.toLowerCase(Locale.ROOT), from);
+		return text.toLowerCase(Locale.ROOT).indexOf(wanted.toLowerCase(Locale.ROOT), from);
+	}
+
+	private static String plainBlanks(String text) {
+		return text.indexOf(Widths.NOBREAK) < 0 ? text : text.replace(Widths.NOBREAK, ' ');
 	}
 }

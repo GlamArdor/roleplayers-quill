@@ -250,6 +250,24 @@ public final class PageEditor {
 		afterEdit();
 	}
 
+	/**
+	 * Puts something else in place of a run of characters, in the formatting of what it replaces.
+	 *
+	 * <p>What correcting a misspelled word comes down to: the word is a stretch of one paragraph, and
+	 * the word chosen instead of it has to arrive wearing the same colour and the same italics, or
+	 * mending a typo in a red heading would leave a black word in the middle of it.
+	 */
+	public void replaceIn(int paragraphIndex, int from, int to, String replacement) {
+		List<Paragraph> current = currentPage();
+		if (paragraphIndex < 0 || paragraphIndex >= current.size()) {
+			return;
+		}
+		document.mark();
+		com.glamardor.roleplayersquill.text.BookSearch.replace(current.get(paragraphIndex), from, to, replacement);
+		setCaret(paragraphIndex, from + replacement.length(), false);
+		afterEdit();
+	}
+
 	/** Inserts a run in a style of its own, which is how a link written into the text gets its colour. */
 	public void insertWithStyle(String value, QuillStyle style) {
 		if (value.isEmpty()) {

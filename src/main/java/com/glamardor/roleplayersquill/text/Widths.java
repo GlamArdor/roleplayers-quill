@@ -80,10 +80,27 @@ public final class Widths {
 	 */
 	public static final char LEADER = '\t';
 
+	/**
+	 * The blank that holds two words together, which is an instruction and not a character.
+	 *
+	 * <p>A book has no such thing. The game breaks a line at a space and at nothing else, so "10 kg"
+	 * is two words to it however much it is one to a reader. What goes on the page is therefore an
+	 * ordinary space, and the holding-together is done the only way it can be: the paragraph is
+	 * written with the break where this mod put it rather than left to the game, so the line ends
+	 * before the pair rather than inside it.
+	 *
+	 * <p>It is as wide as a space and measured as one, because that is what it will be by the time
+	 * anybody reads it.
+	 */
+	public static final char NOBREAK = '\u00A0';
+
 	public static float advance(int codePoint, boolean bold) {
 		if (codePoint == LEADER) {
 			// No width of its own. What fills the gap is decided by the line it ends up on.
 			return 0.0f;
+		}
+		if (codePoint == NOBREAK) {
+			codePoint = ' ';
 		}
 		if (source != null) {
 			return source.advance(codePoint, bold);

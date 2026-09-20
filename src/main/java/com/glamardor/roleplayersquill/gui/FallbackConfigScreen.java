@@ -82,6 +82,15 @@ public class FallbackConfigScreen extends Screen {
 				v -> config.hyphenateAtPageBreak = v));
 		list.addWidget(toggle("justify_last_line", () -> config.justifyLastLine, v -> config.justifyLastLine = v));
 
+		list.addHeader(Text.translatable("roleplayersquill.category.spelling"));
+		list.addWidget(toggle("spell_check", () -> config.spellCheck, v -> config.spellCheck = v));
+		list.addWidget(toggle("spell_skip_capitals", () -> config.spellSkipCapitals,
+				v -> config.spellSkipCapitals = v));
+		list.addWidget(toggle("spell_russian", () -> config.spellRussian, v -> config.spellRussian = v));
+		list.addWidget(toggle("spell_english", () -> config.spellEnglish, v -> config.spellEnglish = v));
+		list.addWidget(toggle("spell_auto_download", () -> config.spellAutoDownload,
+				v -> config.spellAutoDownload = v));
+
 		list.addHeader(Text.translatable("roleplayersquill.category.paste"));
 		list.addWidget(toggle("auto_paste_pages", () -> config.autoPasteMultiPage, v -> config.autoPasteMultiPage = v));
 		list.addWidget(toggle("confirm_big_paste", () -> config.confirmBigPaste, v -> config.confirmBigPaste = v));

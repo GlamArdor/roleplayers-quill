@@ -46,9 +46,25 @@ moves to the match as the word is typed. Replacing is a window of its own, one b
 also a search across every book you have written, which answers the question a writer actually has:
 which book was that in.
 
+**Spelling.** Words nothing recognises are underlined in red, and a right click offers what was
+probably meant, "add to dictionary", and "skip this one". Two things make it usable in a book of
+roleplay rather than infuriating: a word that begins with a capital is left alone, because that is
+what an invented name looks like, and the dictionary you add to is a plain text file in the config
+folder, so fifty place names are fifty lines pasted in once. The word lists are not shipped – they
+are somebody else's work and bigger than this whole mod – and are fetched the first time the check
+is switched on.
+
+**A blank that will not break.** `Ctrl+Shift+Space` puts in the space that holds two words together,
+so "10 kg" and "p. 7" stay on one line. A book cannot hold such a character – the game breaks a line
+at a space and at nothing else – so what holds it together is where the line breaks are written, and
+the paragraph is only written out line by line where leaving it to the game would have parted the
+pair.
+
 **The book's history.** Twenty versions are kept per book, every time one is really written back,
 with the page itself shown beside the list of dates – because a list of dates does not say which
-evening's work is which. Restoring is an ordinary edit and a `Ctrl+Z` undoes it.
+evening's work is which. Restoring is an ordinary edit and a `Ctrl+Z` undoes it. A book stays the
+same book when the server changes it from underneath – a plugin that tears a page out, say – because
+it is recognised by the pages it still has rather than by being byte for byte what it was.
 
 **Blocks you type over and over.** A dateline and a signature, ready made, alongside the page
 templates. The signature takes the name off the tab list rather than the account, without its colours
@@ -208,6 +224,8 @@ and of the model is used and nothing is downloaded twice.
 | `Ctrl+K` `Ctrl+G` `Ctrl+T` | link, symbols, table |
 | `Ctrl+F` | find |
 | `Ctrl+H` | hyphenation on and off |
+| `Ctrl+Shift+Space` | a space the line will not break at |
+| `F7` | spelling on and off |
 | `Ctrl+Enter` `Page Up` `Page Down` | new page, turn back, turn on |
 | `Insert` | dictate |
 
@@ -261,6 +279,24 @@ to have, and the last line would fall off the bottom.
   44 lines laid out, 44 after the game wraps them
 ```
 
+The spelling has a check of its own, because none of it can be seen in a screenshot either: the
+Russian list is Windows-1251 and is decoded by hand, the index is eight bytes a word, and the
+suggestions are generated rather than looked up.
+
+```
+./gradlew spellCheck
+```
+
+It fetches both lists into `build/dictionaries`, builds the indexes, reads them back, and asks about
+words whose answers are known:
+
+```
+== ru
+  1528698 words, built in 662 ms, read in 19 ms, 11 MB on disk
+  кнга → [кинга, книга, куга, кн га, инга, юнга]
+  какбы → [кабы, как бы]
+```
+
 ## Building
 
 ```
@@ -273,6 +309,11 @@ The jar lands in `build/libs`. Java 21.
 
 To [Stendhal](https://modrinth.com/mod/stendhal), which did this first and showed that the section
 sign survives a book.
+
+To [danakt/russian-words](https://github.com/danakt/russian-words) (MIT) and
+[dwyl/english-words](https://github.com/dwyl/english-words) for the spelling lists. Neither is
+shipped inside this mod; both are fetched from their own repositories when the check is first
+switched on, and what is kept afterwards is an index rather than the words.
 
 To [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx), which does the listening. The Java bindings
 under `src/main/java/com/k2fsa/sherpa/onnx` are theirs, carried along unchanged; the native library

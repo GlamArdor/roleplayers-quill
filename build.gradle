@@ -116,6 +116,18 @@ tasks.register('compatCheck', JavaExec) {
 	}
 }
 
+tasks.register('spellCheck', JavaExec) {
+	group = 'verification'
+	description = 'Builds the real word lists and asks them about words whose answers are known'
+	dependsOn tasks.named('classes')
+	classpath = sourceSets.main.runtimeClasspath
+	mainClass = 'tools/SpellCheck.java'
+	jvmArgs '-Xmx2G', '-Dfile.encoding=UTF-8', '-Dstdout.encoding=UTF-8', '-Dstderr.encoding=UTF-8'
+	doFirst {
+		mainClass = file('tools/SpellCheck.java').absolutePath
+	}
+}
+
 tasks.register('toolsClasspath') {
 	description = 'Prints the class path the programs in tools/ need'
 	dependsOn tasks.named('classes')

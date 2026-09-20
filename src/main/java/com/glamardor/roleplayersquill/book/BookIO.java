@@ -360,9 +360,11 @@ public final class BookIO {
 	}
 
 	public static void saveDraft(QuillDocument document, List<String> encodedPages, String owner) {
-		Path file = draftDir().resolve(keyOf(encodedPages, owner) + ".json");
+		String key = keyOf(encodedPages, owner);
+		Path file = draftDir().resolve(key + ".json");
 		try {
 			writeDocument(document, file);
+			rememberPages(document.id(), key, encodedPages);
 			pruneDrafts();
 		} catch (IOException error) {
 			RoleplayersQuill.LOGGER.warn("Could not keep the draft at {}", file, error);
@@ -393,6 +395,213 @@ public final class BookIO {
 			LegacyCodec.restoreLists(page);
 		}
 		return document;
+	}
+
+	// ---- the same book after somebody else has changed it -------------------------------------------
+
+	/**
+	 * A draft is filed under the exact pages the server holds, and that is right until the server's
+	 * copy changes without this client doing it.
+	 *
+	 * <p>Which happens: the server's torn-page plugin takes a page out of the book while it is in
+	 * somebody's hand. The pages are now different, the fingerprint is different, the draft is not
+	 * found, and the book comes back as a stranger – it forgets its links and its colours, and, worse,
+	 * it forgets its name, so the versions kept under that name are no longer its versions. "No saves
+	 * yet" about a book saved all evening.
+	 *
+	 * <p>So a second way of recognising a book, used only when the first fails: the pages it still
+	 * has in common with a draft. Twenty-five pages of twenty-six is the same book by any reasonable
+	 * test, and a page is compared by what is written on it with the spacing taken out, so a page
+	 * written again slightly differently still counts as itself.
+	 *
+	 * <p>What comes back is not the draft. The server's copy is the truth about what the book says –
+	 * putting the torn page back would be this mod quietly undoing the plugin – so the pages are the
+	 * pages that arrived, and what is taken from the draft is everything the pages cannot carry: the
+	 * name of the book, its history, and the formatting of each page that is still there.
+	 */
+	@Nullable
+	public static QuillDocument reopen(List<String> pages, com.glamardor.roleplayersquill.text.Layout.Options options) {
+		if (pages.isEmpty() || isBlank(pages)) {
+			return null;
+		}
+		List<String> marks = marksOf(pages);
+		Entry best = null;
+		int bestScore = 0;
+		for (Entry entry : index()) {
+			int score = 0;
+			for (String mark : marks) {
+				if (entry.marks != null && entry.marks.contains(mark)) {
+					score++;
+				}
+			}
+			if (score > bestScore || score == bestScore && best != null && entry.when > best.when) {
+				if (score > 0) {
+					best = entry;
+					bestScore = score;
+				}
+			}
+		}
+		// Half the pages, and never on the strength of a single page unless that is most of the book.
+		// One page in common is two books quoting the same decree far more often than it is one book.
+		if (best == null || bestScore * 2 < Math.min(marks.size(), best.marks.size())
+				|| bestScore < 2 && marks.size() > 2) {
+			return null;
+		}
+		QuillDocument draft = readDocument(draftDir().resolve(best.key + ".json"));
+		if (draft == null) {
+			return null;
+		}
+
+		// What each page of the draft is written as, so the pages that survived can be recognised.
+		java.util.Map<String, List<Paragraph>> byMark = new java.util.HashMap<>();
+		for (List<Paragraph> page : draft.pages()) {
+			String written = LegacyCodec.encode(page,
+					com.glamardor.roleplayersquill.text.Layout.lay(page, options));
+			byMark.putIfAbsent(markOf(written), page);
+		}
+
+		QuillDocument document = new QuillDocument();
+		document.pages().clear();
+		document.setId(draft.id());
+		document.setTitle(draft.title());
+		for (String page : pages) {
+			List<Paragraph> kept = byMark.get(markOf(page));
+			document.pages().add(kept != null ? QuillDocument.copyPage(kept) : LegacyCodec.decode(page));
+		}
+		if (document.pages().isEmpty()) {
+			document.pages().add(QuillDocument.newPage());
+		}
+		for (List<Paragraph> page : document.pages()) {
+			LegacyCodec.restoreLists(page);
+		}
+		document.loadHistory(draft.history());
+		RoleplayersQuill.LOGGER.info("Recognised this book as {} by {} of its {} pages",
+				best.id, bestScore, pages.size());
+		return document;
+	}
+
+	/**
+	 * What is written on a page, with everything that is only spacing taken out.
+	 *
+	 * <p>The codes go, runs of blanks become one, and empty lines go with them – so a page laid out
+	 * again, justified differently or re-encoded by a later version of this mod still looks like the
+	 * page it is. What is left is the words, which is the only part a reader would call the page.
+	 */
+	static String markOf(String encodedPage) {
+		StringBuilder out = new StringBuilder();
+		for (String line : LegacyCodec.strip(encodedPage).split("\n", -1)) {
+			String tidy = line.replaceAll("\\s+", " ").strip();
+			if (tidy.isEmpty()) {
+				continue;
+			}
+			if (!out.isEmpty()) {
+				out.append('\n');
+			}
+			out.append(tidy);
+		}
+		return Integer.toHexString(out.toString().hashCode()) + ":" + out.length();
+	}
+
+	private static List<String> marksOf(List<String> pages) {
+		List<String> marks = new ArrayList<>();
+		for (String page : pages) {
+			String mark = markOf(page);
+			// A blank page is every blank page; it says nothing about which book this is.
+			if (!mark.endsWith(":0")) {
+				marks.add(mark);
+			}
+		}
+		return marks;
+	}
+
+	/** One book in the little index beside the drafts: its name, its newest draft, and its pages. */
+	static final class Entry {
+		String id;
+		String key;
+		long when;
+		List<String> marks;
+	}
+
+	static final class IndexDto {
+		int format;
+		List<Entry> books;
+	}
+
+	private static Path indexFile() {
+		return draftDir().resolve(INDEX_NAME);
+	}
+
+	private static final String INDEX_NAME = "index.json";
+
+	/** Every file in the drafts folder except the little index that lists them. */
+	private static boolean isDraftFile(Path file) {
+		return Files.isRegularFile(file) && !file.getFileName().toString().equals(INDEX_NAME);
+	}
+
+	private static List<Entry> cachedIndex;
+
+	private static List<Entry> index() {
+		if (cachedIndex != null) {
+			return cachedIndex;
+		}
+		List<Entry> books = new ArrayList<>();
+		Path file = indexFile();
+		if (Files.isRegularFile(file)) {
+			try (Reader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
+				IndexDto dto = GSON.fromJson(reader, IndexDto.class);
+				if (dto != null && dto.books != null) {
+					for (Entry entry : dto.books) {
+						if (entry != null && entry.id != null && entry.key != null && entry.marks != null) {
+							books.add(entry);
+						}
+					}
+				}
+			} catch (IOException | RuntimeException error) {
+				RoleplayersQuill.LOGGER.debug("Could not read {}", file, error);
+			}
+		}
+		cachedIndex = books;
+		return cachedIndex;
+	}
+
+	/**
+	 * Notes which pages this book has, under the name the book goes by.
+	 *
+	 * <p>One line per book rather than one per save: the fingerprint changes every time a word is
+	 * written, the name does not, and an index with a line per save would be the very heap of
+	 * duplicates the library had to be cured of.
+	 */
+	private static void rememberPages(String id, String key, List<String> pages) {
+		// A draft is written within a second of every keystroke, and between real saves it is written
+		// under the same fingerprint every time – so there is nothing to record and no reason to put
+		// two hundred books' worth of page marks back on the disk once a second.
+		for (Entry known : index()) {
+			if (known.id.equals(id) && known.key.equals(key)) {
+				return;
+			}
+		}
+		List<Entry> books = new ArrayList<>(index());
+		books.removeIf(entry -> entry.id.equals(id));
+		Entry entry = new Entry();
+		entry.id = id;
+		entry.key = key;
+		entry.when = System.currentTimeMillis();
+		entry.marks = marksOf(pages);
+		books.add(entry);
+		books.sort((a, b) -> Long.compare(b.when, a.when));
+		while (books.size() > 300) {
+			books.remove(books.size() - 1);
+		}
+		cachedIndex = books;
+
+		IndexDto dto = new IndexDto();
+		dto.format = FORMAT;
+		dto.books = books;
+		try (Writer writer = Files.newBufferedWriter(indexFile(), StandardCharsets.UTF_8)) {
+			GSON.toJson(dto, writer);
+		} catch (IOException error) {
+			RoleplayersQuill.LOGGER.debug("Could not write {}", indexFile(), error);
+		}
 	}
 
 	/**
@@ -567,7 +776,7 @@ public final class BookIO {
 			return out;
 		}
 		try (var stream = Files.list(dir)) {
-			for (Path file : stream.filter(Files::isRegularFile).toList()) {
+			for (Path file : stream.filter(BookIO::isDraftFile).toList()) {
 				QuillDocument document = readDocument(file);
 				if (document == null || document.pageCount() == 0) {
 					continue;
@@ -615,7 +824,7 @@ public final class BookIO {
 			return;
 		}
 		try (var stream = Files.list(dir)) {
-			List<Path> files = new ArrayList<>(stream.filter(Files::isRegularFile).toList());
+			List<Path> files = new ArrayList<>(stream.filter(BookIO::isDraftFile).toList());
 			// Fewer than there used to be, because a draft now carries its history with it and is a
 			// good deal heavier for it. A hundred and fifty books is still every book anyone has
 			// written this month.

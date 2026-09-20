@@ -88,6 +88,30 @@ public class QuillConfig {
 	/** A straight apostrophe becomes a curled one. */
 	public boolean autoApostrophe = true;
 
+	// ---- spelling ---------------------------------------------------------------------------------
+
+	/**
+	 * Underline words no dictionary knows.
+	 *
+	 * <p>Off until it is asked for, because asking for it is what fetches the word lists – nineteen
+	 * megabytes for the two of them, and nothing is downloaded before somebody presses the button.
+	 */
+	public boolean spellCheck = false;
+	/** Check Russian words against the Russian list. */
+	public boolean spellRussian = true;
+	/** Check English words against the English list. */
+	public boolean spellEnglish = true;
+	/**
+	 * Leave words that begin with a capital alone.
+	 *
+	 * <p>On, and it is the setting that decides whether any of this is usable on a roleplaying
+	 * server: a chapter carries a dozen invented names, no dictionary holds one of them, and a
+	 * checker that marks them all is a checker nobody keeps switched on.
+	 */
+	public boolean spellSkipCapitals = true;
+	/** Fetch the word lists the first time the check is switched on. */
+	public boolean spellAutoDownload = true;
+
 	// ---- pasting and importing -------------------------------------------------------------------
 
 	/** A paste longer than the page flows into as many pages as it needs, with no prompt. */

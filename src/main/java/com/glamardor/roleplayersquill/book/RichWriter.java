@@ -56,7 +56,7 @@ public final class RichWriter {
 			}
 			started = true;
 
-			if (LegacyCodec.needsNoPixels(lines, at, after)) {
+			if (LegacyCodec.needsNoPixels(page, lines, at, after)) {
 				encodeRun(out, page.get(index), lines.get(at).start, lines.get(after - 1).contentEnd);
 			} else {
 				for (int i = at; i < after; i++) {
@@ -81,9 +81,20 @@ public final class RichWriter {
 				flush(out, run, runStyle);
 				runStyle = style;
 			}
-			run.append(paragraph.charAt(i));
+			run.append(plain(paragraph.charAt(i)));
 		}
 		flush(out, run, runStyle);
+	}
+
+	/**
+	 * What a character looks like on the page rather than in the editor.
+	 *
+	 * <p>Only the unbreakable blank differs, and it differs the same way here as on the {@code §}
+	 * road: it is a space by the time it is read, and the not-breaking was settled by where the line
+	 * breaks were written.
+	 */
+	private static char plain(char c) {
+		return c == Widths.NOBREAK ? ' ' : c;
 	}
 
 	private static void encodeLine(MutableText out, List<Paragraph> page, Layout.LaidLine line) {
@@ -133,7 +144,7 @@ public final class RichWriter {
 				flush(out, run, runStyle);
 				runStyle = style;
 			}
-			run.append(c);
+			run.append(plain(c));
 		}
 		flush(out, run, runStyle);
 

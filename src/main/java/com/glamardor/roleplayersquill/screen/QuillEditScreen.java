@@ -4,6 +4,7 @@ import com.glamardor.roleplayersquill.RoleplayersQuill;
 import com.glamardor.roleplayersquill.RoleplayersQuillClient;
 import com.glamardor.roleplayersquill.book.BookIO;
 import com.glamardor.roleplayersquill.book.BookSender;
+import com.glamardor.roleplayersquill.book.DictionaryDownload;
 import com.glamardor.roleplayersquill.book.FileDialogs;
 import com.glamardor.roleplayersquill.config.QuillConfig;
 import com.glamardor.roleplayersquill.speech.Dictation;
@@ -15,6 +16,7 @@ import com.glamardor.roleplayersquill.text.Paginator;
 import com.glamardor.roleplayersquill.text.Paragraph;
 import com.glamardor.roleplayersquill.text.QuillDocument;
 import com.glamardor.roleplayersquill.text.QuillStyle;
+import com.glamardor.roleplayersquill.text.Spelling;
 import com.glamardor.roleplayersquill.text.BookTools;
 import com.glamardor.roleplayersquill.text.TableBuilder;
 import com.glamardor.roleplayersquill.text.Widths;
@@ -129,12 +131,19 @@ public class QuillEditScreen extends Screen {
 	private OrnamentPopup ornamentPopup;
 	@Nullable
 	private IconButton ornamentButton;
+	/** The menu over a misspelled word, and where on the screen it was opened. */
+	@Nullable
+	private SpellPopup spellPopup;
+	private int spellX;
+	private int spellY;
 	@Nullable
 	private Text notice;
 	private long noticeUntil;
 	private boolean fontWarned;
 	/** Whether the book has already been looked over for ink an older version left on it. */
 	private boolean mendOffered;
+	/** Whether the unbreakable blank has been explained once, which is as often as it needs to be. */
+	private boolean heldBlankExplained;
 	/** The find strip under the book, when it is open. Null is closed. */
 	@Nullable
 	private FindBar findBar;
@@ -150,6 +159,12 @@ public class QuillEditScreen extends Screen {
 		// A book this client wrote before is remembered in full – paragraphs, links, colours. One it
 		// has not seen is read back from the codes, which is everything a page can actually carry.
 		QuillDocument document = BookIO.loadDraft(pages, ownerTag(hand));
+		if (document == null) {
+			// No draft under these exact pages. Before treating it as a book never seen before, ask
+			// whether it is a book we know that has been changed from outside – which on this server
+			// happens every time a page is torn out of one.
+			document = BookIO.reopen(pages, QuillConfig.get().layoutOptions());
+		}
 		if (document == null) {
 			document = new QuillDocument();
 			document.pages().clear();
@@ -211,6 +226,14 @@ public class QuillEditScreen extends Screen {
 		Widths.clear();
 		warnAboutFont();
 		offerToMend();
+		// The dictionary is twelve megabytes off a disk and is read on a thread of its own; asking
+		// for it here means it is usually in by the time the first page has been read.
+		if (QuillConfig.get().spellCheck) {
+			// Forgotten rather than kept, because the way back into this screen is usually from the
+			// settings, and what was just changed there is what a remembered answer would contradict.
+			Spelling.forget();
+			Spelling.load();
+		}
 		tools.clear();
 
 		List<List<IconButton>> groups = buildTools();
@@ -300,6 +323,11 @@ public class QuillEditScreen extends Screen {
 			ornamentPopup.layout(ornamentButton.getX(), ornamentButton.getY() + IconButton.SIZE + 1,
 					width, height);
 		}
+		if (spellPopup != null) {
+			// Down to the row of buttons and no further: below that is Sign and Done, which are
+			// widgets and are drawn over anything that reaches them.
+			spellPopup.layout(spellX, spellY, width, buttonsY - 2, textRenderer);
+		}
 	}
 
 	private void insertSymbol(String symbol) {
@@ -331,7 +359,14 @@ public class QuillEditScreen extends Screen {
 				colourButton,
 				tool(Icons.BRUSH, "brush", this::brush).showing(() -> editor.brush() != null),
 				tool(Icons.CLEAR, "clear_format", editor::clearFormatting),
-				correctButton));
+				correctButton,
+				tool(Icons.SPELL, "spell", this::toggleSpell)
+						.showing(() -> QuillConfig.get().spellCheck)
+						.telling(() -> Spelling.anyInstalled()
+								? Text.translatable("roleplayersquill.tool.spell")
+								: Text.translatable("roleplayersquill.tool.spell").append("\n")
+										.append(Text.translatable("roleplayersquill.spell.needed",
+												dictionarySize()).formatted(Formatting.GRAY)))));
 
 		styleButton = tool(Icons.PARAGRAPH, "paragraph", this::toggleStyles)
 				.showing(() -> stylePopup != null);
@@ -600,6 +635,11 @@ public class QuillEditScreen extends Screen {
 		if (findBar != null) {
 			findBar.renderTally(context, textRenderer);
 		}
+		// After the widgets rather than before them: this one stands over the page wherever the word
+		// happens to be, so it is the one thing that must never end up behind a button.
+		if (spellPopup != null) {
+			spellPopup.render(context, mouseX, mouseY);
+		}
 
 		drawCounter(context);
 		drawDictation(context);
@@ -776,6 +816,12 @@ public class QuillEditScreen extends Screen {
 			int y = TEXT_Y + i * Layout.LINE_HEIGHT;
 			drawSelection(context, line, page.get(line.paragraph), selection, y);
 			drawLine(context, line, page.get(line.paragraph), y);
+			if (config.showGuides) {
+				drawHeldBlanks(context, line, page.get(line.paragraph), y);
+			}
+			if (config.spellCheck) {
+				drawMisspellings(context, line, page.get(line.paragraph), y);
+			}
 		}
 
 		// Anything past the fourteenth line is not going to be in the book, for anybody. Saying so is
@@ -795,6 +841,53 @@ public class QuillEditScreen extends Screen {
 			float x = TEXT_X + Layout.xOf(line, page.get(line.paragraph), editor.caret());
 			int y = TEXT_Y + caretLine * Layout.LINE_HEIGHT;
 			context.fill((int) x, y - 1, (int) x + 1, y + 9, INK);
+		}
+	}
+
+	/**
+	 * The dotted red line under a word nothing recognises.
+	 *
+	 * <p>Dotted rather than solid, and a row of single pixels rather than the game's own underline:
+	 * an underline is part of the text's own formatting here, and a check that painted one would be
+	 * saying something about the book rather than about the spelling.
+	 *
+	 * <p>A word can lie across a line break, and then each half is marked on its own line, which is
+	 * the same arithmetic the search preview uses for the words it has found.
+	 */
+	private void drawMisspellings(DrawContext context, Layout.LaidLine line, Paragraph paragraph, int y) {
+		List<Spelling.Word> words = Spelling.unknownIn(paragraph);
+		if (words.isEmpty()) {
+			return;
+		}
+		for (Spelling.Word word : words) {
+			if (word.to() <= line.start || word.from() >= line.contentEnd) {
+				continue;
+			}
+			int from = Math.max(word.from(), line.start);
+			int to = Math.min(word.to(), line.contentEnd);
+			int left = (int) (TEXT_X + Layout.xOf(line, paragraph, from));
+			int right = (int) Math.ceil(TEXT_X + Layout.xOf(line, paragraph, to));
+			for (int x = left; x < right; x += 2) {
+				context.fill(x, y + 8, x + 1, y + 9, 0xFFC03030);
+			}
+		}
+	}
+
+	/**
+	 * A dot under every blank that is holding two words together, while the guides are on.
+	 *
+	 * <p>Nothing about such a blank can be seen otherwise – that is the point of it – and a mark that
+	 * cannot be seen is a mark that gets typed twice and deleted by accident. It goes on with the
+	 * guides because that is the switch for exactly this: showing what the page is made of rather
+	 * than what it looks like.
+	 */
+	private void drawHeldBlanks(DrawContext context, Layout.LaidLine line, Paragraph paragraph, int y) {
+		for (int i = line.start; i < line.contentEnd; i++) {
+			if (paragraph.charAt(i) != Widths.NOBREAK) {
+				continue;
+			}
+			int x = (int) (TEXT_X + Layout.xOf(line, paragraph, i));
+			context.fill(x + 1, y + 6, x + 3, y + 7, 0xFF9A7A3A);
 		}
 	}
 
@@ -868,7 +961,10 @@ public class QuillEditScreen extends Screen {
 				runX = x;
 				continue;
 			}
-			run.append(c);
+			// The unbreakable blank is a space to the font, which has no glyph of its own for it and
+			// would draw the box it draws for anything it does not know. Where it stands is shown by
+			// the guides instead, along with everything else that is there and not visible.
+			run.append(c == Widths.NOBREAK ? ' ' : c);
 		}
 		x = flush(context, run, runStyle, runX, y);
 
@@ -1072,6 +1168,18 @@ public class QuillEditScreen extends Screen {
 
 	@Override
 	public boolean mouseClicked(double mouseX, double mouseY, int button) {
+		// The spelling menu stands over the page rather than under a button, so it answers first and
+		// a click anywhere else puts it away – which is what a menu opened by a right click does.
+		if (spellPopup != null) {
+			if (spellPopup.contains(mouseX, mouseY)) {
+				return spellPopup.pickAt(mouseX, mouseY);
+			}
+			closeSpell();
+			return true;
+		}
+		if (button == 1 && openSpellMenu(mouseX, mouseY)) {
+			return true;
+		}
 		// The palette answers first while it is down, except over the button that opened it – there a
 		// click has to reach the button, or closing and reopening would cancel each other out.
 		if (ornamentPopup != null && !(ornamentButton != null && ornamentButton.isMouseOver(mouseX, mouseY))) {
@@ -1228,6 +1336,11 @@ public class QuillEditScreen extends Screen {
 		if (typingInSearch()) {
 			return super.charTyped(chr, modifiers);
 		}
+		// The spelling menu points at a word by where it sits in the paragraph, and a paragraph being
+		// typed in is a paragraph whose words are moving. It goes away at the first keystroke.
+		if (spellPopup != null) {
+			closeSpell();
+		}
 		if (!StringHelperCompat.isValid(chr)) {
 			return false;
 		}
@@ -1249,6 +1362,19 @@ public class QuillEditScreen extends Screen {
 	@Override
 	public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
 		blink = 0;
+		if (keyCode == GLFW.GLFW_KEY_ESCAPE && spellPopup != null) {
+			closeSpell();
+			return true;
+		}
+		if (keyCode == GLFW.GLFW_KEY_F7) {
+			// What F7 does in a word processor, and the one key nothing else in this editor wants.
+			toggleSpell();
+			return true;
+		}
+		if (spellPopup != null && (keyCode == GLFW.GLFW_KEY_BACKSPACE || keyCode == GLFW.GLFW_KEY_DELETE
+				|| keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER)) {
+			closeSpell();
+		}
 		if (keyCode == GLFW.GLFW_KEY_ESCAPE && ornamentPopup != null) {
 			closeOrnaments();
 			return true;
@@ -1478,6 +1604,19 @@ public class QuillEditScreen extends Screen {
 				toggleDictation();
 				return true;
 			}
+			case GLFW.GLFW_KEY_SPACE -> {
+				if (!shift) {
+					return false;
+				}
+				// The same keys a word processor uses for it, and the same idea: a blank the line will
+				// not be broken at. Said out loud once, because nothing about it can be seen.
+				editor.insert(String.valueOf(Widths.NOBREAK));
+				if (!heldBlankExplained) {
+					heldBlankExplained = true;
+					say(Text.translatable("roleplayersquill.nobreak.done"));
+				}
+				return true;
+			}
 			default -> {
 				return false;
 			}
@@ -1614,6 +1753,99 @@ public class QuillEditScreen extends Screen {
 		Paragraph rule = TableBuilder.rule();
 		rule.setAlignment(Alignment.LEFT);
 		insertParagraphs(List.of(rule));
+	}
+
+	/**
+	 * Turns the spelling check on and off, and fetches what it needs the first time.
+	 *
+	 * <p>Nothing is downloaded behind anybody's back: the first press with no dictionary installed is
+	 * the asking, and it says how many megabytes it is about to spend. A press with the lists already
+	 * here is just a switch.
+	 */
+	private void toggleSpell() {
+		QuillConfig config = QuillConfig.get();
+		config.spellCheck = !config.spellCheck;
+		config.save();
+		spellPopup = null;
+		Spelling.forget();
+		if (!config.spellCheck) {
+			say(Text.translatable("roleplayersquill.spell.off"));
+			return;
+		}
+		if (Spelling.anyInstalled()) {
+			Spelling.load();
+			say(Text.translatable("roleplayersquill.spell.on"));
+			return;
+		}
+		if (!config.spellAutoDownload) {
+			say(Text.translatable("roleplayersquill.spell.needed", dictionarySize()), 8000L);
+			return;
+		}
+		if (DictionaryDownload.startOnce(Spelling.missing(), this::clearAndInit)) {
+			say(Text.translatable("roleplayersquill.spell.fetching", dictionarySize()), 8000L);
+		}
+	}
+
+	/** How big the download would be, for saying so before it starts. */
+	private int dictionarySize() {
+		int total = 0;
+		for (Spelling.Tongue tongue : Spelling.missing()) {
+			total += tongue.megabytes();
+		}
+		return total;
+	}
+
+	/**
+	 * Opens the menu over a misspelled word.
+	 *
+	 * <p>On the right button, where every word processor keeps it, and only over a word that is
+	 * actually marked – a right click anywhere else is left to whatever else wants it.
+	 *
+	 * @return whether there was a word there
+	 */
+	private boolean openSpellMenu(double mouseX, double mouseY) {
+		if (!QuillConfig.get().spellCheck || !overPage(mouseX, mouseY)) {
+			return false;
+		}
+		int[] at = locate(mouseX, mouseY);
+		if (at == null) {
+			return false;
+		}
+		Paragraph paragraph = editor.currentPage().get(at[0]);
+		Spelling.Word word = null;
+		for (Spelling.Word candidate : Spelling.unknownIn(paragraph)) {
+			if (at[1] >= candidate.from() && at[1] <= candidate.to()) {
+				word = candidate;
+				break;
+			}
+		}
+		if (word == null) {
+			return false;
+		}
+		int index = at[0];
+		Spelling.Word chosen = word;
+		spellPopup = new SpellPopup(word.text(), Spelling.suggest(word.text()),
+				replacement -> {
+					editor.replaceIn(index, chosen.from(), chosen.to(), replacement);
+					closeSpell();
+				},
+				() -> {
+					Spelling.learn(chosen.text());
+					closeSpell();
+				},
+				() -> {
+					Spelling.ignore(chosen.text());
+					closeSpell();
+				});
+		spellX = (int) mouseX;
+		spellY = (int) mouseY + 4;
+		clearAndInit();
+		return true;
+	}
+
+	private void closeSpell() {
+		spellPopup = null;
+		clearAndInit();
 	}
 
 	private void toggleHyphenation() {
