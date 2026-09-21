@@ -3,6 +3,8 @@ package com.glamardor.roleplayersquill.mixin;
 import com.glamardor.roleplayersquill.config.QuillConfig;
 import com.glamardor.roleplayersquill.screen.CodeToolbar;
 import com.glamardor.roleplayersquill.screen.IconButton;
+import com.glamardor.roleplayersquill.screen.SpellMarks;
+import com.glamardor.roleplayersquill.screen.SpellPopup;
 import com.glamardor.roleplayersquill.screen.SymbolBar;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ChatScreen;
@@ -132,6 +134,20 @@ public abstract class ChatScreenMixin extends Screen {
 	@Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
 	private void roleplayersquill$click(double mouseX, double mouseY, int button,
 			CallbackInfoReturnable<Boolean> info) {
+		// The corrections menu stands over the chat log and answers before anything under it.
+		if (roleplayersquill$spell != null) {
+			if (!roleplayersquill$spell.contains(mouseX, mouseY)) {
+				roleplayersquill$spell = null;
+			} else {
+				roleplayersquill$spell.pickAt(mouseX, mouseY);
+			}
+			info.setReturnValue(true);
+			return;
+		}
+		if (button == 1 && roleplayersquill$openSpell(mouseX, mouseY)) {
+			info.setReturnValue(true);
+			return;
+		}
 		if (roleplayersquill$buttons == null || button != 0) {
 			return;
 		}
@@ -147,6 +163,97 @@ public abstract class ChatScreenMixin extends Screen {
 				return;
 			}
 		}
+	}
+
+	/**
+	 * The spelling of what is being typed, marked in the chat box itself.
+	 *
+	 * <p>The same dictionary and the same menu as a book, because it is the same writing: on a
+	 * roleplay server the chat is where most of it happens, and it is the place where a line is typed
+	 * fastest and read over least.
+	 *
+	 * <p>Where each character sits is asked of the box rather than worked out. It scrolls what it
+	 * holds, so the first character drawn is not the first character typed, and
+	 * {@code getCharacterX} is the box's own answer to exactly that.
+	 */
+	@Inject(method = "render", at = @At("TAIL"))
+	private void roleplayersquill$spelling(DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
+		if (chatField == null || !SpellMarks.wanted()) {
+			return;
+		}
+		SpellMarks.draw(context, chatField.getText(), roleplayersquill$xOf(),
+				roleplayersquill$textY(), chatField.getX(), chatField.getX() + chatField.getWidth());
+		if (roleplayersquill$spell != null) {
+			roleplayersquill$spell.render(context, mouseX, mouseY);
+		}
+	}
+
+	/**
+	 * Where a character of the chat box sits across the screen.
+	 *
+	 * <p>Counted from the first character the box is showing rather than from the first it holds: a
+	 * long message scrolls, and the box's own answer to this question is the one its cursor needs,
+	 * which pretends nothing has scrolled.
+	 */
+	@Unique
+	private java.util.function.IntUnaryOperator roleplayersquill$xOf() {
+		String text = chatField.getText();
+		int first = ((TextFieldWidgetAccessor) chatField).roleplayersquill$firstCharacterIndex();
+		int left = chatField.getX() + (chatField.drawsBackground() ? 4 : 0);
+		return index -> {
+			int at = Math.max(Math.min(index, text.length()), first);
+			return left + this.textRenderer.getWidth(text.substring(Math.min(first, text.length()), at));
+		};
+	}
+
+	/** Where the box draws its text, which is not where the box is when it has a background. */
+	@Unique
+	private int roleplayersquill$textY() {
+		return chatField.drawsBackground()
+				? chatField.getY() + (chatField.getHeight() - 8) / 2
+				: chatField.getY();
+	}
+
+	@Unique
+	private SpellPopup roleplayersquill$spell;
+
+	/**
+	 * Opens the corrections for the word under the cursor, on the right button.
+	 *
+	 * <p>Above the box rather than below it: below the box is the bottom of the screen.
+	 */
+	@Unique
+	private boolean roleplayersquill$openSpell(double mouseX, double mouseY) {
+		if (chatField == null || !SpellMarks.wanted()
+				|| mouseY < chatField.getY() - 2 || mouseY > chatField.getY() + chatField.getHeight()) {
+			return false;
+		}
+		String text = chatField.getText();
+		com.glamardor.roleplayersquill.text.Spelling.Word word =
+				SpellMarks.at(text, roleplayersquill$xOf(), mouseX);
+		if (word == null) {
+			return false;
+		}
+		roleplayersquill$spell = new SpellPopup(word.text(),
+				com.glamardor.roleplayersquill.text.Spelling.suggest(word.text()),
+				replacement -> {
+					String mended = text.substring(0, word.from()) + replacement + text.substring(word.to());
+					chatField.setText(mended);
+					chatField.setCursor(word.from() + replacement.length(), false);
+					roleplayersquill$carried = mended;
+					roleplayersquill$spell = null;
+				},
+				() -> {
+					com.glamardor.roleplayersquill.text.Spelling.learn(word.text());
+					roleplayersquill$spell = null;
+				},
+				() -> {
+					com.glamardor.roleplayersquill.text.Spelling.ignore(word.text());
+					roleplayersquill$spell = null;
+				});
+		roleplayersquill$spell.layout((int) mouseX, chatField.getY() - 2, this.width,
+				chatField.getY() - 2, this.textRenderer);
+		return true;
 	}
 
 	@Inject(method = "render", at = @At("TAIL"))

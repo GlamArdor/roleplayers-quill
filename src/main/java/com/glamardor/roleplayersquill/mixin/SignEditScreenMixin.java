@@ -10,6 +10,7 @@ import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.ingame.AbstractSignEditScreen;
 import net.minecraft.client.util.SelectionManager;
 import net.minecraft.text.Text;
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -33,6 +34,14 @@ import java.util.List;
 public abstract class SignEditScreenMixin extends Screen {
 	@Shadow
 	private SelectionManager selectionManager;
+
+	@Shadow
+	@Final
+	private String[] messages;
+
+	@Shadow
+	@Final
+	protected net.minecraft.block.entity.SignBlockEntity blockEntity;
 
 	/** Whether the whole browser is showing under the sign. Survives the rebuild it causes. */
 	@Unique
@@ -89,6 +98,37 @@ public abstract class SignEditScreenMixin extends Screen {
 			for (IconButton button : codes) {
 				addDrawableChild(button);
 			}
+		}
+	}
+
+	/**
+	 * The spelling of what is on the sign, marked under the sign's own lettering.
+	 *
+	 * <p>Drawn at the end of the game's own text drawing, inside the same scaled matrix, and laid out
+	 * by the same arithmetic: a line is centred, so it starts half its width to the left of the
+	 * middle, and the four rows hang half a sign above and below it.
+	 *
+	 * <p>Marks and no menu. A sign holds four short lines and is usually a name on a shop, so the
+	 * useful half of this is seeing that something is wrong; the whole line can be retyped in the
+	 * time it takes to open anything.
+	 */
+	@Inject(method = "renderSignText", at = @At("TAIL"))
+	private void roleplayersquill$spelling(net.minecraft.client.gui.DrawContext context, CallbackInfo ci) {
+		if (messages == null || !com.glamardor.roleplayersquill.screen.SpellMarks.wanted()) {
+			return;
+		}
+		int lineHeight = blockEntity.getTextLineHeight();
+		int half = 4 * lineHeight / 2;
+		for (int row = 0; row < messages.length; row++) {
+			String line = messages[row];
+			if (line == null || line.isBlank()) {
+				continue;
+			}
+			int left = -this.textRenderer.getWidth(line) / 2;
+			int top = row * lineHeight - half;
+			com.glamardor.roleplayersquill.screen.SpellMarks.draw(context, line,
+					index -> left + this.textRenderer.getWidth(line.substring(0, Math.min(index, line.length()))),
+					top, Integer.MIN_VALUE / 2, Integer.MAX_VALUE / 2);
 		}
 	}
 }

@@ -25,6 +25,31 @@ public final class BookTools {
 		return out.toString();
 	}
 
+	/**
+	 * How many words are written on a page.
+	 *
+	 * <p>Counted the way a person counts them: a run of letters or figures is a word, and the
+	 * punctuation, the blanks and the list markers around it are not. A number is a word, because in
+	 * "тридцать монет" and "30 монет" nobody would say the second is shorter by one.
+	 */
+	public static int wordsOn(List<Paragraph> page) {
+		int words = 0;
+		for (Paragraph paragraph : page) {
+			String text = paragraph.text();
+			boolean inside = false;
+			for (int i = 0; i < text.length(); i++) {
+				char c = text.charAt(i);
+				boolean letter = Character.isLetterOrDigit(c)
+						|| (c == '-' || c == '\'' || c == '’') && inside;
+				if (letter && !inside) {
+					words++;
+				}
+				inside = letter;
+			}
+		}
+		return words;
+	}
+
 	/** How many footnotes are already marked on a page. */
 	public static int footnotesOn(List<Paragraph> page) {
 		int found = 0;

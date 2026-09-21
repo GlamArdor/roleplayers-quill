@@ -115,6 +115,8 @@ final class ClothConfigScreens {
 				v -> config.spellRussian = v));
 		spelling.addEntry(toggle(entries, "spell_english", config.spellEnglish, defaults.spellEnglish,
 				v -> config.spellEnglish = v));
+		spelling.addEntry(toggle(entries, "spell_elsewhere", config.spellElsewhere, defaults.spellElsewhere,
+				v -> config.spellElsewhere = v));
 		spelling.addEntry(toggle(entries, "spell_auto_download", config.spellAutoDownload,
 				defaults.spellAutoDownload, v -> config.spellAutoDownload = v));
 

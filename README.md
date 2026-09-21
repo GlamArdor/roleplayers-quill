@@ -47,7 +47,9 @@ also a search across every book you have written, which answers the question a w
 which book was that in.
 
 **Spelling.** Words nothing recognises are underlined in red, and a right click offers what was
-probably meant, "add to dictionary", and "skip this one". Two things make it usable in a book of
+probably meant, "add to dictionary", and "skip this one". The count for the whole book is on the
+button that switches it on, and `Shift+F7` walks the words one at a time across every page. The chat
+box and the sign editor are checked by the same dictionary. Two things make it usable in a book of
 roleplay rather than infuriating: a word that begins with a capital is left alone, because that is
 what an invented name looks like, and the dictionary you add to is a plain text file in the config
 folder, so fifty place names are fifty lines pasted in once. The word lists are not shipped – they
@@ -225,7 +227,7 @@ and of the model is used and nothing is downloaded twice.
 | `Ctrl+F` | find |
 | `Ctrl+H` | hyphenation on and off |
 | `Ctrl+Shift+Space` | a space the line will not break at |
-| `F7` | spelling on and off |
+| `F7` `Shift+F7` | spelling on and off, next word not recognised |
 | `Ctrl+Enter` `Page Up` `Page Down` | new page, turn back, turn on |
 | `Insert` | dictate |
 

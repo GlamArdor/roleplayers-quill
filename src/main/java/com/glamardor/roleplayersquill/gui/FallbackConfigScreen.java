@@ -88,6 +88,7 @@ public class FallbackConfigScreen extends Screen {
 				v -> config.spellSkipCapitals = v));
 		list.addWidget(toggle("spell_russian", () -> config.spellRussian, v -> config.spellRussian = v));
 		list.addWidget(toggle("spell_english", () -> config.spellEnglish, v -> config.spellEnglish = v));
+		list.addWidget(toggle("spell_elsewhere", () -> config.spellElsewhere, v -> config.spellElsewhere = v));
 		list.addWidget(toggle("spell_auto_download", () -> config.spellAutoDownload,
 				v -> config.spellAutoDownload = v));
 

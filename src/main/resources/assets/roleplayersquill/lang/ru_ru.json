@@ -450,5 +450,11 @@
 	"toast.roleplayersquill.dictionary.size": "%s МБ",
 	"toast.roleplayersquill.dictionary.ready": "Словарь готов",
 	"toast.roleplayersquill.dictionary.ready.detail": "Проверка орфографии работает",
-	"toast.roleplayersquill.dictionary.failed": "Словарь скачать не удалось"
+	"toast.roleplayersquill.dictionary.failed": "Словарь скачать не удалось",
+	"roleplayersquill.editor.words": " · %s сл.",
+	"roleplayersquill.spell.found": "Ошибок: %1$s, страниц в книге: %2$s",
+	"roleplayersquill.spell.clean": "Ошибок в книге нет",
+	"roleplayersquill.spell.walk": "Shift+F7 – к следующему такому слову",
+	"roleplayersquill.option.spell_elsewhere": "Проверять в чате и на табличках",
+	"roleplayersquill.option.spell_elsewhere.tooltip": "Тем же словарём и с тем же меню по правой кнопке. На табличке – только подчёркивание."
 }

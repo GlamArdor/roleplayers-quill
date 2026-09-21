@@ -276,10 +276,19 @@ public final class Spelling {
 	 * three of which are the same answer as far as the page is concerned: draw nothing.
 	 */
 	public static List<Word> unknownIn(Paragraph paragraph) {
+		return unknownIn(paragraph.text());
+	}
+
+	/**
+	 * The same for a line of text that is not a paragraph of a book: a chat message, a sign.
+	 *
+	 * <p>The answer is filed under the text itself, so the same line asked about sixty times a second
+	 * is read once – and a chat box and a book page holding the same words share the answer.
+	 */
+	public static List<Word> unknownIn(String text) {
 		if (!QuillConfig.get().spellCheck || !ready()) {
 			return List.of();
 		}
-		String text = paragraph.text();
 		if (text.isBlank()) {
 			return List.of();
 		}
@@ -294,6 +303,23 @@ public final class Spelling {
 			CACHE.put(text, found);
 		}
 		return found;
+	}
+
+	/**
+	 * How many words in the whole book nothing recognises.
+	 *
+	 * <p>The page being looked at is the only one that is underlined, and a book here runs to twenty
+	 * pages – so the page in front of you says nothing at all about page fourteen. This is the number
+	 * that does, and it is cheap: every paragraph's answer is already worked out and kept.
+	 */
+	public static int countIn(List<List<Paragraph>> pages) {
+		int total = 0;
+		for (List<Paragraph> page : pages) {
+			for (Paragraph paragraph : page) {
+				total += unknownIn(paragraph).size();
+			}
+		}
+		return total;
 	}
 
 	private static List<Word> scan(String text) {

@@ -362,11 +362,7 @@ public class QuillEditScreen extends Screen {
 				correctButton,
 				tool(Icons.SPELL, "spell", this::toggleSpell)
 						.showing(() -> QuillConfig.get().spellCheck)
-						.telling(() -> Spelling.anyInstalled()
-								? Text.translatable("roleplayersquill.tool.spell")
-								: Text.translatable("roleplayersquill.tool.spell").append("\n")
-										.append(Text.translatable("roleplayersquill.spell.needed",
-												dictionarySize()).formatted(Formatting.GRAY)))));
+						.telling(this::spellTooltip)));
 
 		styleButton = tool(Icons.PARAGRAPH, "paragraph", this::toggleStyles)
 				.showing(() -> stylePopup != null);
@@ -758,6 +754,9 @@ public class QuillEditScreen extends Screen {
 				: used > QuillDocument.MAX_PAGE_CHARS * 9 / 10 ? Formatting.GOLD : Formatting.GRAY;
 		MutableText counter = Text.translatable("roleplayersquill.editor.counter",
 				used, QuillDocument.MAX_PAGE_CHARS, lines, Layout.PAGE_LINES).formatted(colour);
+		// The one number here that is about the writing rather than about the room left for it.
+		counter.append(Text.translatable("roleplayersquill.editor.words",
+				BookTools.wordsOn(editor.currentPage())).formatted(Formatting.DARK_GRAY));
 		if (editor.isDirty()) {
 			counter = Text.literal("• ").formatted(Formatting.GOLD).append(counter);
 		}
@@ -1368,7 +1367,12 @@ public class QuillEditScreen extends Screen {
 		}
 		if (keyCode == GLFW.GLFW_KEY_F7) {
 			// What F7 does in a word processor, and the one key nothing else in this editor wants.
-			toggleSpell();
+			// With shift it walks the book instead of switching the check on and off.
+			if (Screen.hasShiftDown()) {
+				nextMisspelling();
+			} else {
+				toggleSpell();
+			}
 			return true;
 		}
 		if (spellPopup != null && (keyCode == GLFW.GLFW_KEY_BACKSPACE || keyCode == GLFW.GLFW_KEY_DELETE
@@ -1784,6 +1788,89 @@ public class QuillEditScreen extends Screen {
 		if (DictionaryDownload.startOnce(Spelling.missing(), this::clearAndInit)) {
 			say(Text.translatable("roleplayersquill.spell.fetching", dictionarySize()), 8000L);
 		}
+	}
+
+	/**
+	 * What the spelling button says on hover: how the book stands, rather than how this page does.
+	 *
+	 * <p>The count belongs here and nowhere else. A number standing over the page would be a number
+	 * in the way of the writing, and the one moment anybody wants it is the moment they reach for the
+	 * button – at which point it is worth three lines: how many, how to walk them, and how to answer
+	 * one.
+	 */
+	private Text spellTooltip() {
+		MutableText tip = Text.translatable("roleplayersquill.tool.spell");
+		if (!Spelling.anyInstalled()) {
+			return tip.append("\n").append(Text.translatable("roleplayersquill.spell.needed",
+					dictionarySize()).formatted(Formatting.GRAY));
+		}
+		if (!QuillConfig.get().spellCheck) {
+			return tip;
+		}
+		int found = Spelling.countIn(editor.document().pages());
+		tip.append("\n").append(found == 0
+				? Text.translatable("roleplayersquill.spell.clean").formatted(Formatting.GREEN)
+				: Text.translatable("roleplayersquill.spell.found", found,
+						editor.document().pageCount()).formatted(Formatting.GOLD));
+		if (found > 0) {
+			tip.append("\n").append(Text.translatable("roleplayersquill.spell.walk").formatted(Formatting.GRAY));
+		}
+		return tip;
+	}
+
+	/**
+	 * Goes to the next word in the book that nothing recognises, wherever it is.
+	 *
+	 * <p>Underlining happens on the page being drawn, which leaves every other page of a twenty-page
+	 * book unwatched. This is the way through them: forward from the caret, on past the end of the
+	 * page, round to the beginning when the book runs out – the same walk the search does, because it
+	 * is the same question asked of a different list.
+	 */
+	private void nextMisspelling() {
+		if (!QuillConfig.get().spellCheck || !Spelling.ready()) {
+			say(Text.translatable("roleplayersquill.spell.off"));
+			return;
+		}
+		List<List<Paragraph>> pages = editor.document().pages();
+		int fromPage = editor.page();
+		int fromParagraph = editor.paragraphIndex();
+		int after = Math.max(editor.caret(), editor.selection().toIndex());
+
+		for (int step = 0; step <= pages.size(); step++) {
+			int index = (fromPage + step) % pages.size();
+			List<Paragraph> page = pages.get(index);
+			for (int p = 0; p < page.size(); p++) {
+				// On the page the caret is on, the first time round, start where the caret is.
+				boolean behind = step == 0 && (p < fromParagraph);
+				if (behind) {
+					continue;
+				}
+				for (Spelling.Word word : Spelling.unknownIn(page.get(p))) {
+					if (step == 0 && p == fromParagraph && word.from() < after) {
+						continue;
+					}
+					show(index, p, word);
+					return;
+				}
+			}
+			// Coming round to the page we started on, take it from the top this time.
+			if (step == pages.size() - 1) {
+				fromParagraph = 0;
+				after = -1;
+			}
+		}
+		say(Text.translatable("roleplayersquill.spell.clean"));
+	}
+
+	/** Turns to a word and picks it out, so that the next keystroke replaces it. */
+	private void show(int page, int paragraph, Spelling.Word word) {
+		if (page != editor.page()) {
+			editor.setPage(page);
+		}
+		editor.setCaret(paragraph, word.from(), false);
+		editor.setCaret(paragraph, word.to(), true);
+		blink = 0;
+		say(Text.literal(word.text()).formatted(Formatting.GOLD));
 	}
 
 	/** How big the download would be, for saying so before it starts. */

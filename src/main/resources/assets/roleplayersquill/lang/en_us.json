@@ -450,5 +450,11 @@
 	"toast.roleplayersquill.dictionary.size": "%s MB",
 	"toast.roleplayersquill.dictionary.ready": "Dictionary ready",
 	"toast.roleplayersquill.dictionary.ready.detail": "Spelling is being checked",
-	"toast.roleplayersquill.dictionary.failed": "Could not fetch the dictionary"
+	"toast.roleplayersquill.dictionary.failed": "Could not fetch the dictionary",
+	"roleplayersquill.editor.words": " · %s w.",
+	"roleplayersquill.spell.found": "Mistakes: %1$s, pages in the book: %2$s",
+	"roleplayersquill.spell.clean": "No mistakes in this book",
+	"roleplayersquill.spell.walk": "Shift+F7 – go to the next one",
+	"roleplayersquill.option.spell_elsewhere": "Check the chat and signs too",
+	"roleplayersquill.option.spell_elsewhere.tooltip": "The same dictionary and the same right-click menu. On a sign, the marks only."
 }

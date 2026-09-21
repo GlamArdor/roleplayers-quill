@@ -111,6 +111,14 @@ public class QuillConfig {
 	public boolean spellSkipCapitals = true;
 	/** Fetch the word lists the first time the check is switched on. */
 	public boolean spellAutoDownload = true;
+	/**
+	 * Check the chat box and the sign editor as well as books.
+	 *
+	 * <p>The same dictionary and the same menu of corrections: a line of roleplay is a line of
+	 * roleplay whether it is being written into a book or said out loud in the chat, and the chat is
+	 * where the typing is fastest and least looked over.
+	 */
+	public boolean spellElsewhere = true;
 
 	// ---- pasting and importing -------------------------------------------------------------------
 
