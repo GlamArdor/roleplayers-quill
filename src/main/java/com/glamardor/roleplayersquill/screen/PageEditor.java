@@ -35,7 +35,7 @@ import java.util.function.UnaryOperator;
  * same way the importer fills pages – and the caret goes with the text rather than staying behind
  * on the page it was typed on.
  */
-public final class PageEditor {
+public final class PageEditor implements BookView {
 	private final QuillDocument document;
 	private final QuillConfig config = QuillConfig.get();
 
@@ -62,14 +62,22 @@ public final class PageEditor {
 
 	// ---- what the screen asks ---------------------------------------------------------------------
 
+	@Override
+	public boolean editable() {
+		return true;
+	}
+
+	@Override
 	public QuillDocument document() {
 		return document;
 	}
 
+	@Override
 	public int page() {
 		return page;
 	}
 
+	@Override
 	public void setPage(int index) {
 		page = Math.max(0, Math.min(index, document.pageCount() - 1));
 		paragraph = 0;

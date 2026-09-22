@@ -13,6 +13,7 @@
 	"roleplayersquill.category.correct": "Автозамена",
 	"roleplayersquill.category.paste": "Вставка и импорт",
 	"roleplayersquill.category.links": "Ссылки и цвет",
+	"roleplayersquill.category.reading": "Чтение подписанной книги",
 	"roleplayersquill.category.elsewhere": "Таблички, наковальня, чат",
 	"roleplayersquill.category.voice": "Голосовой набор",
 
@@ -72,6 +73,11 @@
 	"roleplayersquill.option.reader_links.tooltip": "Адрес в любой книге становится ссылкой при чтении, с тем же предупреждением, что и в чате.",
 	"roleplayersquill.option.reader_links_no_scheme": "И без https",
 	"roleplayersquill.option.reader_links_no_scheme.tooltip": "Узнавать example.com наравне с https://example.com.",
+
+	"roleplayersquill.option.reader_tools": "Кнопки на подписанной книге",
+	"roleplayersquill.option.reader_tools.tooltip": "Поиск, оглавление, список страниц, сохранение копии и экспорт — рядом с каждой открытой подписанной книгой. Выключено — экран книги остаётся ванильным, кроме ссылок. Открытие книги с зажатым приседанием отключает это для конкретной книги независимо от настройки.",
+	"roleplayersquill.option.reader_header": "Шапка на подписанной книге",
+	"roleplayersquill.option.reader_header.tooltip": "Название, автор и какая это копия — в верхней рамке самой книги.",
 
 	"roleplayersquill.option.sign_editor": "Форматирование на табличках",
 	"roleplayersquill.option.sign_editor.tooltip": "Полоска символов над кнопкой «Готово». Цвет и свечение таблички задаются красителем и светящимся мешочком, а не текстом, поэтому кодов там нет.",
@@ -393,6 +399,13 @@
 	"roleplayersquill.export.codes.strip": "Только чистый текст",
 
 	"roleplayersquill.reader.open": "Открыть %s",
+	"roleplayersquill.reader.keep": "Сохранить копию",
+	"roleplayersquill.reader.kept": "Сохранено: книга теперь в библиотеке",
+	"roleplayersquill.reader.kept.failed": "Не удалось сохранить книгу",
+	"roleplayersquill.reader.header.original": "%1$s — %2$s",
+	"roleplayersquill.reader.header.copy": "%1$s — %2$s, копия",
+	"roleplayersquill.reader.header.tattered": "%1$s — %2$s, копия копии",
+	"roleplayersquill.reader.contents.none": "В этой книге нет заголовков.",
 	"roleplayersquill.chat.note": "Пишите %s перед кодом: § сервер не пропустит.",
 	"roleplayersquill.anvil.creative": "Креатив: положить в руку копию с этим именем",
 

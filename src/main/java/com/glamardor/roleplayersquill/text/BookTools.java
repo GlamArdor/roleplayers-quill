@@ -74,22 +74,23 @@ public final class BookTools {
 		return false;
 	}
 
+	/** One heading, wherever it was found. */
+	public record Heading(String text, int page, boolean under) {
+	}
+
 	/**
-	 * A contents page for the book, from the headings in it.
+	 * Every heading and subheading in the book, in reading order.
 	 *
 	 * <p>A book remembers nothing about headings – a written page is a flat string – so what counts
 	 * as one is what a heading looks like: bold and centred, which is exactly what the paragraph
-	 * style puts there. Anything set that way is listed.
+	 * style puts there. Anything set that way is a heading, whether this mod wrote it, an older
+	 * version of it did, or a page was typed by hand to look the same way.
 	 *
-	 * @param pages the book as it stands, before the contents are put in front of it
-	 * @return the pages of the contents, ready to be inserted at the front, or empty if there are
-	 *         no headings to list
+	 * @param skip a heading to leave out even so – the contents' own title, when contents are being
+	 *             built for a book that may already have a copy of them in it
 	 */
-	public static List<List<Paragraph>> contentsFor(List<List<Paragraph>> pages, Text title) {
-		record Entry(String text, int page, boolean under) {
-		}
-		List<Entry> entries = new ArrayList<>();
-		String titleText = title.getString();
+	public static List<Heading> headings(List<List<Paragraph>> pages, String skip) {
+		List<Heading> entries = new ArrayList<>();
 		for (int p = 0; p < pages.size(); p++) {
 			for (Paragraph paragraph : pages.get(p)) {
 				if (paragraph.isEmpty()) {
@@ -102,12 +103,24 @@ public final class BookTools {
 					continue;
 				}
 				String text = paragraph.text().trim();
-				// Not the contents' own heading, so that building them twice does not list them.
-				if (!text.isEmpty() && !text.equals(titleText)) {
-					entries.add(new Entry(text, p, style == ParagraphStyle.SUBHEADING));
+				if (!text.isEmpty() && !text.equals(skip)) {
+					entries.add(new Heading(text, p, style == ParagraphStyle.SUBHEADING));
 				}
 			}
 		}
+		return entries;
+	}
+
+	/**
+	 * A contents page for the book, from the headings in it.
+	 *
+	 * @param pages the book as it stands, before the contents are put in front of it
+	 * @return the pages of the contents, ready to be inserted at the front, or empty if there are
+	 *         no headings to list
+	 */
+	public static List<List<Paragraph>> contentsFor(List<List<Paragraph>> pages, Text title) {
+		String titleText = title.getString();
+		List<Heading> entries = headings(pages, titleText);
 		if (entries.isEmpty()) {
 			return List.of();
 		}
@@ -123,7 +136,7 @@ public final class BookTools {
 		ParagraphStyle.HEADING.applyTo(heading);
 		page.add(heading);
 
-		for (Entry entry : entries) {
+		for (Heading entry : entries) {
 			if (page.size() >= perPage) {
 				out.add(page);
 				page = new ArrayList<>();

@@ -105,6 +105,10 @@ public class FallbackConfigScreen extends Screen {
 		list.addWidget(toggle("reader_links_no_scheme", () -> config.readerLinksWithoutScheme,
 				v -> config.readerLinksWithoutScheme = v));
 
+		list.addHeader(Text.translatable("roleplayersquill.category.reading"));
+		list.addWidget(toggle("reader_tools", () -> config.readerTools, v -> config.readerTools = v));
+		list.addWidget(toggle("reader_header", () -> config.readerHeader, v -> config.readerHeader = v));
+
 		list.addHeader(Text.translatable("roleplayersquill.category.elsewhere"));
 		list.addWidget(toggle("sign_editor", () -> config.signEditor, v -> config.signEditor = v));
 		list.addWidget(toggle("anvil_editor", () -> config.anvilEditor, v -> config.anvilEditor = v));

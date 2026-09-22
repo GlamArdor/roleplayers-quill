@@ -4,6 +4,7 @@ import net.minecraft.text.ClickEvent;
 import net.minecraft.text.HoverEvent;
 import net.minecraft.text.Style;
 import net.minecraft.text.Text;
+import net.minecraft.text.TextColor;
 import net.minecraft.util.Formatting;
 import org.jetbrains.annotations.Nullable;
 
@@ -234,6 +235,41 @@ public record QuillStyle(
 			style = style.withHoverEvent(new HoverEvent.ShowText(LegacyCodec.toText(hover)));
 		}
 		return style;
+	}
+
+	/**
+	 * The other direction: what a component the reader is holding says about one character, read
+	 * back into this.
+	 *
+	 * <p>Only for a page that arrived as a component – a creative book, mostly. The five switches and
+	 * the colour come back exactly; a click keeps whichever one kind it was, in the same order this
+	 * writes them in, since a style can only ever carry one. A tooltip comes back as plain text: what
+	 * it says survives, the formatting inside it does not, which is the one thing a {@link
+	 * QuillStyle#hover} was never more than to begin with.
+	 */
+	public static QuillStyle from(Style style) {
+		TextColor colour = style.getColor();
+		QuillStyle out = new QuillStyle(
+				style.isBold(), style.isItalic(), style.isUnderlined(), style.isStrikethrough(),
+				style.isObfuscated(), colour == null ? INHERIT : colour.getRgb(),
+				null, null, null, null, 0);
+
+		ClickEvent click = style.getClickEvent();
+		if (click instanceof ClickEvent.OpenUrl open) {
+			out = out.withUrl(open.uri().toString());
+		} else if (click instanceof ClickEvent.RunCommand run) {
+			out = out.withCommand(run.command());
+		} else if (click instanceof ClickEvent.CopyToClipboard copy) {
+			out = out.withCopy(copy.value());
+		} else if (click instanceof ClickEvent.ChangePage jump) {
+			out = out.withPage(jump.page());
+		}
+
+		HoverEvent hover = style.getHoverEvent();
+		if (hover instanceof HoverEvent.ShowText text) {
+			out = out.withHover(text.value().getString());
+		}
+		return out;
 	}
 
 	@Override

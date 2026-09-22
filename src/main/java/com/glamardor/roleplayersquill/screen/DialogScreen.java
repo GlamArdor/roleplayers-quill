@@ -58,6 +58,14 @@ public abstract class DialogScreen extends Screen {
 	public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta) {
 		if (parent != null) {
 			try {
+				// A vanilla book draws its page – the texture itself – in renderBackground, and
+				// Screen.render never calls that: the game calls the two of them in turn, and only
+				// the second of them is what a dialog standing over a screen reaches for. So the
+				// book is asked for its background as well, or the panel opens over a page of text
+				// hanging in mid air with the world showing through where the book should be.
+				if (parent instanceof net.minecraft.client.gui.screen.ingame.BookScreen) {
+					parent.renderBackground(context, -1, -1, delta);
+				}
 				parent.render(context, -1, -1, delta);
 			} catch (Throwable error) {
 				// A screen that will not draw itself out of turn is not worth losing the dialog over.

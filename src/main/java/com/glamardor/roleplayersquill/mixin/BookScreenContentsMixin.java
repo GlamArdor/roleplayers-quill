@@ -1,7 +1,9 @@
 package com.glamardor.roleplayersquill.mixin;
 
 import com.glamardor.roleplayersquill.reader.LinkDetector;
+import com.glamardor.roleplayersquill.reader.OpenBookContext;
 import net.minecraft.client.gui.screen.ingame.BookScreen;
+import net.minecraft.item.ItemStack;
 import net.minecraft.text.Text;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -23,5 +25,15 @@ public class BookScreenContentsMixin {
 		if (page != null) {
 			info.setReturnValue(LinkDetector.decorate(page));
 		}
+	}
+
+	/**
+	 * {@code Contents} only ever keeps the pages it was built from, not the stack – so the stack is
+	 * set aside here, the one place it and the screen about to open for it are both still in hand,
+	 * for {@link com.glamardor.roleplayersquill.reader.SignedBook} to put a name over the book with.
+	 */
+	@Inject(method = "create", at = @At("HEAD"))
+	private static void roleplayersquill$rememberStack(ItemStack stack, CallbackInfoReturnable<BookScreen.Contents> info) {
+		OpenBookContext.stash(stack);
 	}
 }

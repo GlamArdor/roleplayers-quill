@@ -29,24 +29,32 @@ public class FindBar {
 	private static final int WIDTH = 320;
 	/** The arrows, the way to the replacing window and the cross, with the gaps between them. */
 	private static final int BUTTONS = 148;
+	/** The same without the replacing window, which a book nobody can write to is never offered. */
+	private static final int BUTTONS_READING = 64;
 	/** The room kept for "3 of 11", which is never wider than this and never sits over the box. */
 	private static final int TALLY = 42;
 
-	private final PageEditor editor;
+	private final BookView view;
 	private final Runnable openFull;
 	private final Runnable onClose;
 
 	private TextFieldWidget box;
 	private int x;
 	private int y;
+	/** What {@link #layout} settled on, so the panel behind is drawn the width the buttons need. */
+	private int barWidth = WIDTH;
 
 	/** Where the last match was, so that the arrows walk rather than start over. */
 	private BookSearch.Hit at = new BookSearch.Hit(0, 0, 0, 0);
 	private int found;
 	private int total;
 
-	public FindBar(PageEditor editor, Runnable openFull, Runnable onClose) {
-		this.editor = editor;
+	/**
+	 * @param openFull opens the replace window; ignored, and its button left off the strip, for a
+	 *                 book nobody can write to
+	 */
+	public FindBar(BookView view, Runnable openFull, Runnable onClose) {
+		this.view = view;
 		this.openFull = openFull;
 		this.onClose = onClose;
 	}
@@ -58,7 +66,12 @@ public class FindBar {
 
 	public void layout(int centreX, int top, int screenWidth, TextRenderer textRenderer,
 			Consumer<ClickableWidget> add) {
-		int width = Math.min(WIDTH, screenWidth - 8);
+		// The strip is only as wide as the buttons it actually carries. Keeping the room for a
+		// replace button that is never drawn left a hand's width of empty panel in the middle of
+		// the bar, which looked like something had failed to load rather than like a choice.
+		int buttons = view.editable() ? BUTTONS : BUTTONS_READING;
+		int width = Math.min(WIDTH - (BUTTONS - buttons), screenWidth - 8);
+		this.barWidth = width;
 		this.x = centreX - width / 2;
 		this.y = top;
 
@@ -66,7 +79,7 @@ public class FindBar {
 		// The box stops short of the tally rather than sharing the room with it. Drawing "3/11" over
 		// the end of the box put it on top of whatever had been typed, and a long word and a short
 		// answer sat in the same pixels.
-		int boxWidth = width - BUTTONS - TALLY;
+		int boxWidth = width - buttons - TALLY;
 		box = new TextFieldWidget(textRenderer, x + 2, y, boxWidth, HEIGHT,
 				Text.translatable("roleplayersquill.find.needle"));
 		box.setMaxLength(120);
@@ -85,11 +98,17 @@ public class FindBar {
 				.dimensions(right, y, 18, HEIGHT).build());
 		add.accept(ButtonWidget.builder(Text.literal("▼"), b -> step(true))
 				.dimensions(right + 20, y, 18, HEIGHT).build());
-		add.accept(ButtonWidget.builder(Text.translatable("roleplayersquill.find.replaceOpen"),
-						b -> openFull.run())
-				.dimensions(right + 42, y, 80, HEIGHT).build());
-		add.accept(ButtonWidget.builder(Text.literal("✕"), b -> onClose.run())
-				.dimensions(right + 126, y, 18, HEIGHT).build());
+		// Replacing changes the book, so a book nobody can write to is not offered the button for it.
+		if (view.editable()) {
+			add.accept(ButtonWidget.builder(Text.translatable("roleplayersquill.find.replaceOpen"),
+							b -> openFull.run())
+					.dimensions(right + 42, y, 80, HEIGHT).build());
+			add.accept(ButtonWidget.builder(Text.literal("✕"), b -> onClose.run())
+					.dimensions(right + 126, y, 18, HEIGHT).build());
+		} else {
+			add.accept(ButtonWidget.builder(Text.literal("✕"), b -> onClose.run())
+					.dimensions(right + 42, y, 18, HEIGHT).build());
+		}
 	}
 
 	/** The box, so the screen can hand it the keyboard when the strip opens. */
@@ -110,7 +129,7 @@ public class FindBar {
 			total = 0;
 			return;
 		}
-		List<List<com.glamardor.roleplayersquill.text.Paragraph>> pages = editor.document().pages();
+		List<List<com.glamardor.roleplayersquill.text.Paragraph>> pages = view.document().pages();
 		total = BookSearch.count(pages, what, false);
 		BookSearch.Hit hit = forwards
 				? BookSearch.next(pages, what, false, at)
@@ -121,9 +140,9 @@ public class FindBar {
 		}
 		at = hit;
 		found = BookSearch.ordinalOf(pages, what, false, hit);
-		editor.setPage(hit.page());
-		editor.setCaret(hit.paragraph(), hit.from(), false);
-		editor.setCaret(hit.paragraph(), hit.to(), true);
+		view.setPage(hit.page());
+		view.setCaret(hit.paragraph(), hit.from(), false);
+		view.setCaret(hit.paragraph(), hit.to(), true);
 	}
 
 	/** The strip itself, drawn under the widgets that sit on it. */
@@ -131,9 +150,8 @@ public class FindBar {
 		if (box == null) {
 			return;
 		}
-		int width = Math.min(WIDTH, context.getScaledWindowWidth() - 8);
-		context.fill(x - 2, y - 3, x + width + 2, y + HEIGHT + 3, 0xD0101010);
-		context.drawBorder(x - 2, y - 3, width + 4, HEIGHT + 6, 0xFF3A3A3A);
+		context.fill(x - 2, y - 3, x + barWidth + 2, y + HEIGHT + 3, 0xD0101010);
+		context.drawBorder(x - 2, y - 3, barWidth + 4, HEIGHT + 6, 0xFF3A3A3A);
 	}
 
 	/**

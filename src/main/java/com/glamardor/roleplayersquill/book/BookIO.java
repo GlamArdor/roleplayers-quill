@@ -259,9 +259,14 @@ public final class BookIO {
 
 	@Nullable
 	public static QuillDocument readDocument(Path file) {
+		DocumentDto dto = readDocumentDto(file);
+		return dto == null ? null : fromDto(dto);
+	}
+
+	@Nullable
+	private static DocumentDto readDocumentDto(Path file) {
 		try (Reader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
-			DocumentDto dto = GSON.fromJson(reader, DocumentDto.class);
-			return dto == null ? null : fromDto(dto);
+			return GSON.fromJson(reader, DocumentDto.class);
 		} catch (IOException | RuntimeException error) {
 			RoleplayersQuill.LOGGER.warn("Could not read {}", file, error);
 			return null;
@@ -364,10 +369,45 @@ public final class BookIO {
 		Path file = draftDir().resolve(key + ".json");
 		try {
 			writeDocument(document, file);
-			rememberPages(document.id(), key, encodedPages);
+			rememberPages(document.id(), key, encodedPages, false);
 			pruneDrafts();
 		} catch (IOException error) {
 			RoleplayersQuill.LOGGER.warn("Could not keep the draft at {}", file, error);
+		}
+	}
+
+	/**
+	 * Keeps a copy of a signed book being read, so it turns up in a search across every book on
+	 * this computer, the same way anything written here does.
+	 *
+	 * <p>Filed apart from an ordinary draft in one respect: it is marked as somebody else's book
+	 * rather than a piece of work in hand, so that writing a new book which happens to say the same
+	 * thing – the same form letter, typed again – never quietly opens with this one's title and
+	 * history sitting on it. {@link #loadDraft} and {@link #reopen} both skip anything marked this
+	 * way; {@link #allBooks} does not, since the entire point of keeping it is to be found there.
+	 *
+	 * @return whether it was kept, so the reader can say so rather than leave a button that looks
+	 *         like it did nothing
+	 */
+	public static boolean keepSigned(QuillDocument document, List<String> encodedPages) {
+		if (isBlank(encodedPages)) {
+			return false;
+		}
+		String key = keyOf(encodedPages, "signed");
+		Path file = draftDir().resolve(key + ".json");
+		try {
+			Files.createDirectories(file.getParent());
+			DocumentDto dto = toDto(document);
+			dto.signed = true;
+			try (Writer writer = Files.newBufferedWriter(file, StandardCharsets.UTF_8)) {
+				GSON.toJson(dto, writer);
+			}
+			rememberPages(document.id(), key, encodedPages, true);
+			pruneDrafts();
+			return true;
+		} catch (IOException error) {
+			RoleplayersQuill.LOGGER.warn("Could not keep the book at {}", file, error);
+			return false;
 		}
 	}
 
@@ -377,10 +417,11 @@ public final class BookIO {
 		if (!Files.isRegularFile(file)) {
 			return null;
 		}
-		QuillDocument document = readDocument(file);
-		if (document == null) {
+		DocumentDto dto = readDocumentDto(file);
+		if (dto == null || dto.signed) {
 			return null;
 		}
+		QuillDocument document = fromDto(dto);
 		// Never for a blank book. Two blank books are the same book as far as anything here can
 		// tell, so opening one with the last one's text in it is a guess, and the guess was wrong
 		// often enough to hand people fifty pages of somebody else's work. What happens instead is
@@ -428,6 +469,12 @@ public final class BookIO {
 		Entry best = null;
 		int bestScore = 0;
 		for (Entry entry : index()) {
+			if (entry.signed) {
+				// A copy of somebody else's book, kept only to be found by a search – reopening a new
+				// book as it would hand this one's title and history to a book that merely says the
+				// same thing, a form letter typed again being the case that actually happens.
+				continue;
+			}
 			int score = 0;
 			for (String mark : marks) {
 				if (entry.marks != null && entry.marks.contains(mark)) {
@@ -520,6 +567,8 @@ public final class BookIO {
 		String key;
 		long when;
 		List<String> marks;
+		/** A copy of somebody else's book, kept only to be found – never a candidate to reopen as. */
+		boolean signed;
 	}
 
 	static final class IndexDto {
@@ -571,7 +620,7 @@ public final class BookIO {
 	 * written, the name does not, and an index with a line per save would be the very heap of
 	 * duplicates the library had to be cured of.
 	 */
-	private static void rememberPages(String id, String key, List<String> pages) {
+	private static void rememberPages(String id, String key, List<String> pages, boolean signed) {
 		// A draft is written within a second of every keystroke, and between real saves it is written
 		// under the same fingerprint every time – so there is nothing to record and no reason to put
 		// two hundred books' worth of page marks back on the disk once a second.
@@ -587,6 +636,7 @@ public final class BookIO {
 		entry.key = key;
 		entry.when = System.currentTimeMillis();
 		entry.marks = marksOf(pages);
+		entry.signed = signed;
 		books.add(entry);
 		books.sort((a, b) -> Long.compare(b.when, a.when));
 		while (books.size() > 300) {
@@ -982,6 +1032,8 @@ public final class BookIO {
 		List<List<ParagraphDto>> pages;
 		/** The steps back, newest first, so that undo still works after the book has been shut. */
 		List<HistoryDto> history;
+		/** A copy of somebody else's book kept by {@link #keepSigned}; see {@link Entry#signed}. */
+		boolean signed;
 	}
 
 	static final class HistoryDto {

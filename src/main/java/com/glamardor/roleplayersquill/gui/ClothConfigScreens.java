@@ -146,6 +146,12 @@ final class ClothConfigScreens {
 		links.addEntry(toggle(entries, "reader_links_no_scheme", config.readerLinksWithoutScheme,
 				defaults.readerLinksWithoutScheme, v -> config.readerLinksWithoutScheme = v));
 
+		ConfigCategory reading = builder.getOrCreateCategory(Text.translatable("roleplayersquill.category.reading"));
+		reading.addEntry(toggle(entries, "reader_tools", config.readerTools, defaults.readerTools,
+				v -> config.readerTools = v));
+		reading.addEntry(toggle(entries, "reader_header", config.readerHeader, defaults.readerHeader,
+				v -> config.readerHeader = v));
+
 		ConfigCategory elsewhere = builder.getOrCreateCategory(Text.translatable("roleplayersquill.category.elsewhere"));
 		elsewhere.addEntry(toggle(entries, "sign_editor", config.signEditor, defaults.signEditor,
 				v -> config.signEditor = v));

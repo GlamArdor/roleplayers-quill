@@ -13,6 +13,7 @@
 	"roleplayersquill.category.correct": "Correct as you type",
 	"roleplayersquill.category.paste": "Pasting and importing",
 	"roleplayersquill.category.links": "Links and colour",
+	"roleplayersquill.category.reading": "Reading a signed book",
 	"roleplayersquill.category.elsewhere": "Signs, anvils and chat",
 	"roleplayersquill.category.voice": "Voice typing",
 
@@ -72,6 +73,11 @@
 	"roleplayersquill.option.reader_links.tooltip": "An address written in any book becomes clickable when you read it, with the same warning the chat gives.",
 	"roleplayersquill.option.reader_links_no_scheme": "Also without https",
 	"roleplayersquill.option.reader_links_no_scheme.tooltip": "Recognise example.com as well as https://example.com.",
+
+	"roleplayersquill.option.reader_tools": "Buttons on a signed book",
+	"roleplayersquill.option.reader_tools.tooltip": "Finding, contents, the page list, keeping a copy and exporting, beside every signed book you open. Off leaves the vanilla book screen exactly as it was, addresses aside. Opening a book while sneaking leaves it off for that book no matter what this says.",
+	"roleplayersquill.option.reader_header": "The header on a signed book",
+	"roleplayersquill.option.reader_header.tooltip": "The title, the author and which copy this is, in the book's own top border.",
 
 	"roleplayersquill.option.sign_editor": "Formatting on signs",
 	"roleplayersquill.option.sign_editor.tooltip": "A row of symbols over the Done button. A sign's colour and glow come from dye and a glow ink sac rather than from its text, so there are no codes there.",
@@ -393,6 +399,13 @@
 	"roleplayersquill.export.codes.strip": "Plain text only",
 
 	"roleplayersquill.reader.open": "Open %s",
+	"roleplayersquill.reader.keep": "Keep a copy",
+	"roleplayersquill.reader.kept": "Kept: this book is in the library now",
+	"roleplayersquill.reader.kept.failed": "This book could not be kept",
+	"roleplayersquill.reader.header.original": "%1$s — %2$s",
+	"roleplayersquill.reader.header.copy": "%1$s — %2$s, copy",
+	"roleplayersquill.reader.header.tattered": "%1$s — %2$s, copy of a copy",
+	"roleplayersquill.reader.contents.none": "This book has no headings.",
 	"roleplayersquill.chat.note": "Type %s before a code: the server refuses a section sign.",
 	"roleplayersquill.anvil.creative": "Creative: put a named copy in your hand",
 

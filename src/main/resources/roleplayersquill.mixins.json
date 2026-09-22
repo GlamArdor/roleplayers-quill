@@ -9,6 +9,7 @@
 	"client": [
 		"AnvilScreenMixin",
 		"BookScreenContentsMixin",
+		"BookScreenMixin",
 		"ChatScreenMixin",
 		"ClientPlayerEntityMixin",
 		"ScreenMixin",

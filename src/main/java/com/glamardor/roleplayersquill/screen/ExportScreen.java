@@ -25,16 +25,16 @@ import java.nio.file.Path;
  * character so that the book can come back exactly as it went.
  */
 public class ExportScreen extends DialogScreen {
-	private final PageEditor editor;
+	private final BookView view;
 
 	private boolean keepCodes = true;
 	private TextFieldWidget separator;
 	@Nullable
 	private Path written;
 
-	public ExportScreen(@Nullable Screen parent, PageEditor editor) {
+	public ExportScreen(@Nullable Screen parent, BookView view) {
 		super(parent, Text.translatable("roleplayersquill.export.title"));
-		this.editor = editor;
+		this.view = view;
 		this.panelWidth = 300;
 		this.panelHeight = 190;
 	}
@@ -73,7 +73,7 @@ public class ExportScreen extends DialogScreen {
 	}
 
 	private void exportText() {
-		String suggested = BookIO.suggestName(editor.document().title(), "txt");
+		String suggested = BookIO.suggestName(view.document().title(), "txt");
 		FileDialogs.save(Text.translatable("roleplayersquill.export.text").getString(), suggested,
 				new String[] { "*.txt" }, "Text", path -> {
 					try {
@@ -81,7 +81,7 @@ public class ExportScreen extends DialogScreen {
 						if (target == null) {
 							return;
 						}
-						Path produced = BookIO.exportText(editor.document(), editor.encodePages(),
+						Path produced = BookIO.exportText(view.document(), view.encodePages(),
 								keepCodes, separator.getText());
 						Files.move(produced, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
 						written = target;
@@ -93,14 +93,14 @@ public class ExportScreen extends DialogScreen {
 	}
 
 	private void exportDocument() {
-		String suggested = BookIO.suggestName(editor.document().title(), "json");
+		String suggested = BookIO.suggestName(view.document().title(), "json");
 		FileDialogs.save(Text.translatable("roleplayersquill.export.document").getString(), suggested,
 				new String[] { "*.json" }, "Roleplayer's Quill", path -> {
 					if (path == null) {
 						return;
 					}
 					try {
-						BookIO.writeDocument(editor.document(), path);
+						BookIO.writeDocument(view.document(), path);
 						written = path;
 					} catch (IOException error) {
 						RoleplayersQuill.LOGGER.warn("Could not export the book", error);

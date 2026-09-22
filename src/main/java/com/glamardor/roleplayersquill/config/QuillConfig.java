@@ -148,6 +148,17 @@ public class QuillConfig {
 	/** Also recognise addresses without a scheme, like {@code example.com/page}. */
 	public boolean readerLinksWithoutScheme = true;
 
+	// ---- reading a signed book ---------------------------------------------------------------------
+
+	/**
+	 * The buttons beside a signed book, and everything they open: finding, contents, the page
+	 * list, saving a copy and exporting. Off leaves the vanilla book screen exactly as it was,
+	 * addresses aside.
+	 */
+	public boolean readerTools = true;
+	/** The title, the author and which copy this is, in the book's own top border. */
+	public boolean readerHeader = true;
+
 	// ---- the other places text is typed ----------------------------------------------------------
 
 	public boolean signEditor = true;

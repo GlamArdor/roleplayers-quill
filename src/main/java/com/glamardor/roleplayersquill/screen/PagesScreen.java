@@ -24,14 +24,14 @@ public class PagesScreen extends DialogScreen {
 	private static final int ROW = 22;
 	private static final int VISIBLE = 7;
 
-	private final PageEditor editor;
+	private final BookView view;
 	private int scroll;
 	private int chosen;
 
-	public PagesScreen(@Nullable Screen parent, PageEditor editor) {
+	public PagesScreen(@Nullable Screen parent, BookView view) {
 		super(parent, Text.translatable("roleplayersquill.pages.title"));
-		this.editor = editor;
-		this.chosen = editor.page();
+		this.view = view;
+		this.chosen = view.page();
 		this.panelWidth = 300;
 		this.panelHeight = VISIBLE * ROW + 84;
 	}
@@ -39,28 +39,32 @@ public class PagesScreen extends DialogScreen {
 	@Override
 	protected void init() {
 		super.init();
-		scroll = MathHelper.clamp(chosen - VISIBLE / 2, 0, Math.max(0, editor.document().pageCount() - VISIBLE));
+		scroll = MathHelper.clamp(chosen - VISIBLE / 2, 0, Math.max(0, view.document().pageCount() - VISIBLE));
 
 		int y = panelY + panelHeight - 52;
-		addDrawableChild(ButtonWidget.builder(Text.literal("▲"), button -> move(-1))
-				.dimensions(panelX + 12, y, 26, 20).build());
-		addDrawableChild(ButtonWidget.builder(Text.literal("▼"), button -> move(1))
-				.dimensions(panelX + 42, y, 26, 20).build());
-		addDrawableChild(ButtonWidget.builder(Text.translatable("roleplayersquill.pages.duplicate"), button -> {
-			editor.setPage(chosen);
-			editor.duplicatePage();
-			chosen = editor.page();
-			clearAndInit();
-		}).dimensions(panelX + 72, y, 96, 20).build());
-		addDrawableChild(ButtonWidget.builder(Text.translatable("roleplayersquill.pages.delete"), button -> {
-			editor.setPage(chosen);
-			editor.removePage();
-			chosen = editor.page();
-			clearAndInit();
-		}).dimensions(panelX + 172, y, 116, 20).build());
+		// Reordering, duplicating and deleting change the book, so a book nobody can write to is
+		// shown the list and the "go" button and nothing that would suggest it could be edited.
+		if (view.editable()) {
+			addDrawableChild(ButtonWidget.builder(Text.literal("▲"), button -> move(-1))
+					.dimensions(panelX + 12, y, 26, 20).build());
+			addDrawableChild(ButtonWidget.builder(Text.literal("▼"), button -> move(1))
+					.dimensions(panelX + 42, y, 26, 20).build());
+			addDrawableChild(ButtonWidget.builder(Text.translatable("roleplayersquill.pages.duplicate"), button -> {
+				view.setPage(chosen);
+				view.duplicatePage();
+				chosen = view.page();
+				clearAndInit();
+			}).dimensions(panelX + 72, y, 96, 20).build());
+			addDrawableChild(ButtonWidget.builder(Text.translatable("roleplayersquill.pages.delete"), button -> {
+				view.setPage(chosen);
+				view.removePage();
+				chosen = view.page();
+				clearAndInit();
+			}).dimensions(panelX + 172, y, 116, 20).build());
+		}
 
 		addDrawableChild(ButtonWidget.builder(Text.translatable("roleplayersquill.pages.go"), button -> {
-			editor.setPage(chosen);
+			view.setPage(chosen);
 			close();
 		}).dimensions(panelX + 12, panelY + panelHeight - 28, 140, 20).build());
 		addDrawableChild(ButtonWidget.builder(ScreenTexts.DONE, button -> close())
@@ -69,14 +73,14 @@ public class PagesScreen extends DialogScreen {
 
 	private void move(int delta) {
 		int to = chosen + delta;
-		if (to < 0 || to >= editor.document().pageCount()) {
+		if (to < 0 || to >= view.document().pageCount()) {
 			return;
 		}
-		editor.document().mark();
-		editor.document().movePage(chosen, to);
+		view.document().mark();
+		view.document().movePage(chosen, to);
 		chosen = to;
 		reveal();
-		editor.touch();
+		view.touch();
 	}
 
 	/**
@@ -91,7 +95,7 @@ public class PagesScreen extends DialogScreen {
 		} else if (chosen >= scroll + VISIBLE) {
 			scroll = chosen - VISIBLE + 1;
 		}
-		scroll = MathHelper.clamp(scroll, 0, Math.max(0, editor.document().pageCount() - VISIBLE));
+		scroll = MathHelper.clamp(scroll, 0, Math.max(0, view.document().pageCount() - VISIBLE));
 	}
 
 	@Override
@@ -107,7 +111,7 @@ public class PagesScreen extends DialogScreen {
 	@Override
 	public boolean mouseScrolled(double mouseX, double mouseY, double horizontal, double vertical) {
 		scroll = MathHelper.clamp(scroll - (int) Math.signum(vertical), 0,
-				Math.max(0, editor.document().pageCount() - VISIBLE));
+				Math.max(0, view.document().pageCount() - VISIBLE));
 		return true;
 	}
 
@@ -124,7 +128,7 @@ public class PagesScreen extends DialogScreen {
 			return -1;
 		}
 		int index = scroll + row;
-		return index < editor.document().pageCount() ? index : -1;
+		return index < view.document().pageCount() ? index : -1;
 	}
 
 	@Override
@@ -137,7 +141,7 @@ public class PagesScreen extends DialogScreen {
 
 		for (int row = 0; row < VISIBLE; row++) {
 			int index = scroll + row;
-			if (index >= editor.document().pageCount()) {
+			if (index >= view.document().pageCount()) {
 				break;
 			}
 			int y = listY + row * ROW;
@@ -146,16 +150,16 @@ public class PagesScreen extends DialogScreen {
 
 			context.drawText(textRenderer, Text.literal(String.valueOf(index + 1)).formatted(Formatting.GOLD),
 					listX + 4, y + 3, 0xFFFFFFFF, false);
-			context.drawText(textRenderer, summary(editor.document().page(index)),
+			context.drawText(textRenderer, summary(view.document().page(index)),
 					listX + 26, y + 3, 0xFFD0D0D0, false);
 			context.drawText(textRenderer, Text.translatable("roleplayersquill.pages.chars",
-							LegacyCodec.strip(firstLine(editor.document().page(index))).length())
+							LegacyCodec.strip(firstLine(view.document().page(index))).length())
 					.formatted(Formatting.DARK_GRAY), listX + 26, y + 12, 0xFFFFFFFF, false);
 		}
 
 		context.drawCenteredTextWithShadow(textRenderer,
 				Text.translatable("roleplayersquill.pages.count",
-						editor.document().pageCount(), QuillDocument.MAX_PAGES).formatted(Formatting.GRAY),
+						view.document().pageCount(), QuillDocument.MAX_PAGES).formatted(Formatting.GRAY),
 				width / 2, panelY + panelHeight - 66, 0xFFFFFFFF);
 	}
 

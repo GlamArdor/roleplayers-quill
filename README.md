@@ -85,10 +85,27 @@ switched on – which is why it is a setting rather than a button.
 **Signs, anvils and chat** get a formatting bar too, with the truth about what each of them can
 actually carry.
 
-**Sneak to get out of the way.** Opening a book while sneaking opens the vanilla editor instead.
-Other mods add to that screen – [ImagineBook](https://modrinth.com/mod/imaginebook) puts pictures on
-a page through it – and replacing it outright would mean quietly removing a feature this mod knows
-nothing about.
+**Reading, not just writing.** A signed book opens exactly as it always did – this is the vanilla
+book screen, not a screen of its own, so any other mod that draws in it still can – but with a
+strip of buttons beside it. `Ctrl+F` finds a word across every page. One button lists the headings,
+built the same way a contents page is: bold and centred is what a heading looks like, whoever wrote
+it. Another lists every page with its opening line. A third keeps a copy in the same library a book
+written here is kept in, so it turns up later in a search across every book on this computer without
+having been written here at all. A fourth exports it to a file, in the format that imports straight
+back into a blank book for editing. None of this cares whether this mod wrote the book: the test for
+a heading is what it looks like, not a mark this mod left behind, so somebody else's book gets the
+same buttons.
+
+Selecting works too – drag across a line, `Ctrl+A` for the page, `Ctrl+C` for what was selected –
+and what is copied is the words, with the formatting codes and the alignment padding left out of it.
+
+A name, an author and which copy this is sit in the book's own top border, the one place vanilla
+never draws in. The buttons and the header are each a setting of their own, on by default.
+
+**Sneak to get out of the way.** Opening a book while sneaking opens the vanilla editor instead, and
+reading one that way leaves the buttons off too. Other mods add to the vanilla screens –
+[ImagineBook](https://modrinth.com/mod/imaginebook) puts pictures on a page through the editor –
+and replacing either outright would mean quietly removing a feature this mod knows nothing about.
 
 ## The thing that makes it work
 
@@ -230,6 +247,9 @@ and of the model is used and nothing is downloaded twice.
 | `F7` `Shift+F7` | spelling on and off, next word not recognised |
 | `Ctrl+Enter` `Page Up` `Page Down` | new page, turn back, turn on |
 | `Insert` | dictate |
+
+Reading a signed book carries three of these over, since there is nothing on that screen to sign or
+delete: `Ctrl+F` to find, `Ctrl+C` to copy a selection, `Ctrl+A` for the whole page.
 
 ## Versions
 
