@@ -437,7 +437,11 @@ public class QuillEditScreen extends Screen {
 				tool(Icons.CLEAR, "page_clear", editor::clearCurrentPage),
 				tool(Icons.PAGE_REMOVE, "page_remove", editor::removePage),
 				tool(Icons.PAGES, "pages", () -> client.setScreen(new PagesScreen(this, editor))),
-				tool(Icons.HISTORY, "history", () -> client.setScreen(new HistoryScreen(this, editor)))));
+				tool(Icons.HISTORY, "history", () -> client.setScreen(new HistoryScreen(this, editor))),
+				// Beside the history on purpose: they are the same question asked of two different
+				// shelves. The history is what this book said before; the shelf is what every other
+				// book said, including the one that is now ash at the bottom of a ravine.
+				tool(Icons.SHELF, "shelf", () -> client.setScreen(new ShelfScreen(this, editor)))));
 
 		groups.add(List.of(
 				tool(Icons.IMPORT, "import", this::importFile),

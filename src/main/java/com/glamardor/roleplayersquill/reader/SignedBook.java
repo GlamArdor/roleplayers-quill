@@ -8,10 +8,12 @@ import com.glamardor.roleplayersquill.text.Widths;
 import net.minecraft.client.gui.screen.ingame.BookScreen;
 import net.minecraft.client.gui.screen.ingame.LecternScreen;
 import net.minecraft.component.DataComponentTypes;
+import net.minecraft.component.type.LoreComponent;
 import net.minecraft.component.type.WrittenBookContentComponent;
 import net.minecraft.item.ItemStack;
 import net.minecraft.text.Style;
 import net.minecraft.text.Text;
+import net.minecraft.util.Formatting;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -111,7 +113,7 @@ public final class SignedBook {
 
 	// ---- who wrote it, and how many times it has been copied -----------------------------------
 
-	public record Info(String title, String author, int generation) {
+	public record Info(String title, String author, int generation, List<String> lore) {
 		/** Whether this is a first-hand copy, or a copy of one. */
 		public boolean isCopy() {
 			return generation > 0;
@@ -144,6 +146,64 @@ public final class SignedBook {
 		if (content == null) {
 			return null;
 		}
-		return new Info(content.title().raw(), content.author(), content.generation());
+		// The name the item actually shows, which on a server that renames books is not the name the
+		// book was signed under. What is on the shelf should be what was in the hand.
+		Text renamed = stack.get(DataComponentTypes.CUSTOM_NAME);
+		String title = renamed == null ? content.title().raw() : renamed.getString();
+		return new Info(title, content.author(), content.generation(), loreOf(stack));
+	}
+
+	/**
+	 * The lines under the name of the item, written back out with their {@code §} codes.
+	 *
+	 * <p>Lore is where a roleplay server keeps everything a book is besides its text – who it was
+	 * issued by, what it is a copy of, that it is sealed. None of it is in the pages, so a copy kept
+	 * without it is a copy of the wrong thing; and it is kept as a flat coded line rather than as a
+	 * component because that is all this mod ever needs of it: something to draw in a list.
+	 */
+	private static List<String> loreOf(ItemStack stack) {
+		LoreComponent lore = stack.get(DataComponentTypes.LORE);
+		if (lore == null || lore.lines().isEmpty()) {
+			return List.of();
+		}
+		List<String> out = new ArrayList<>(lore.lines().size());
+		for (Text line : lore.lines()) {
+			out.add(legacyOf(line));
+		}
+		return out;
+	}
+
+	/** One line of text as a string with the codes in it, which is how a book carries its styling. */
+	public static String legacyOf(Text text) {
+		StringBuilder out = new StringBuilder();
+		QuillStyle[] last = { null };
+		text.visit((style, run) -> {
+			QuillStyle mine = QuillStyle.from(style).legacyPart();
+			if (last[0] == null || !mine.sameLegacy(last[0])) {
+				out.append(LegacyCodec.SECTION).append('r');
+				if (mine.legacyColorIndex() >= 0) {
+					out.append(mine.nearestLegacy());
+				}
+				if (mine.bold()) {
+					out.append(Formatting.BOLD);
+				}
+				if (mine.italic()) {
+					out.append(Formatting.ITALIC);
+				}
+				if (mine.underlined()) {
+					out.append(Formatting.UNDERLINE);
+				}
+				if (mine.strikethrough()) {
+					out.append(Formatting.STRIKETHROUGH);
+				}
+				if (mine.obfuscated()) {
+					out.append(Formatting.OBFUSCATED);
+				}
+				last[0] = mine;
+			}
+			out.append(run);
+			return java.util.Optional.empty();
+		}, Style.EMPTY);
+		return out.toString();
 	}
 }

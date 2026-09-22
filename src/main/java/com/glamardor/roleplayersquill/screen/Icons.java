@@ -408,6 +408,20 @@ public final class Icons {
 		}
 	};
 
+	/**
+	 * A shelf with books standing on it, one of them shorter than the rest.
+	 *
+	 * <p>Not a book: there are book icons already and they all mean "the one in your hand". This one
+	 * means the others, which is what the row of spines says at any size.
+	 */
+	public static final Icon SHELF = (context, x, y, color) -> {
+		context.fill(x + 2, y + 12, x + 14, y + 13, color);
+		context.fill(x + 3, y + 3, x + 5, y + 12, color);
+		context.fill(x + 6, y + 5, x + 8, y + 12, color);
+		context.fill(x + 9, y + 3, x + 11, y + 12, color);
+		context.fill(x + 12, y + 6, x + 14, y + 12, color);
+	};
+
 	public static final Icon CLEAR = (context, x, y, color) -> glyph(context, "×", null, x, y, color);
 	public static final Icon COLOR_SWATCH = (context, x, y, color) -> {
 		context.drawBorder(x + 2, y + 2, 12, 12, 0xFF000000);

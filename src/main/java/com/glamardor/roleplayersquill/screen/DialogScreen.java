@@ -77,7 +77,13 @@ public abstract class DialogScreen extends Screen {
 		// A dim of our own over all of it. Some screens draw no background at all – a sign editor
 		// shows the world as it is – and a panel floating over an undimmed sunny field is hard to
 		// read and looks like it belongs to something else.
-		context.fill(0, 0, width, height, 0x90000000);
+		//
+		// Never over a book. A book draws the dim itself before it draws its page, so a second one
+		// lands on the paper rather than on the world: the page goes brown, and the reader, who
+		// only asked for a list of chapters, watches the book they are reading go dark behind it.
+		if (!(parent instanceof net.minecraft.client.gui.screen.ingame.BookScreen)) {
+			context.fill(0, 0, width, height, 0x90000000);
+		}
 		context.fill(panelX, panelY, panelX + panelWidth, panelY + panelHeight, PANEL);
 		context.drawBorder(panelX, panelY, panelWidth, panelHeight, EDGE);
 	}

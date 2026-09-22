@@ -208,6 +208,35 @@ public final class QuillDocument {
 		this.title = title.length() > MAX_TITLE ? title.substring(0, MAX_TITLE) : title;
 	}
 
+	// ---- what the item said about itself ---------------------------------------------------------
+
+	/**
+	 * Who signed the book, and whatever the item carried under its name.
+	 *
+	 * <p>Neither is part of the text and neither can be written from here: a book gets its author
+	 * when it is signed, and its lore from whatever put the lore there. They are kept because a
+	 * shelf of copies of other people's books is unreadable without them – twenty books called
+	 * "Указ" are told apart by who signed them and nothing else.
+	 */
+	private String author = "";
+	private List<String> lore = List.of();
+
+	public String author() {
+		return author;
+	}
+
+	public void setAuthor(String author) {
+		this.author = author == null ? "" : author;
+	}
+
+	public List<String> lore() {
+		return lore;
+	}
+
+	public void setLore(List<String> lines) {
+		this.lore = lines == null ? List.of() : List.copyOf(lines);
+	}
+
 	// ---- history -------------------------------------------------------------------------------
 
 	/** Remembers where things stand, just before something is about to change them. */

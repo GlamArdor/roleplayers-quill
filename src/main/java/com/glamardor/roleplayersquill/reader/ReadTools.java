@@ -8,6 +8,7 @@ import com.glamardor.roleplayersquill.screen.FindBar;
 import com.glamardor.roleplayersquill.screen.IconButton;
 import com.glamardor.roleplayersquill.screen.Icons;
 import com.glamardor.roleplayersquill.screen.PagesScreen;
+import com.glamardor.roleplayersquill.screen.ShelfScreen;
 import com.glamardor.roleplayersquill.text.Layout;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
@@ -88,7 +89,10 @@ public final class ReadTools {
 
 		if (config.readerTools && x + IconButton.SIZE <= screenWidth) {
 			int y = 4;
-			add.accept(new IconButton(x, y, Icons.FIND, Text.translatable("roleplayersquill.tool.find"),
+			// "Find", not "Find and replace": the button opens the same strip the editor's does, but
+			// a signed book cannot be written in, so half of what the editor's button promises is
+			// not on offer here.
+			add.accept(new IconButton(x, y, Icons.FIND, Text.translatable("roleplayersquill.tool.find.read"),
 					this::toggleFind).showing(() -> findBar != null));
 			y += size;
 			add.accept(new IconButton(x, y, Icons.CONTENTS, Text.translatable("roleplayersquill.tool.contents"),
@@ -99,6 +103,9 @@ public final class ReadTools {
 			y += size;
 			add.accept(new IconButton(x, y, Icons.SAVE, Text.translatable("roleplayersquill.reader.keep"),
 					this::keep));
+			y += size;
+			add.accept(new IconButton(x, y, Icons.SHELF, Text.translatable("roleplayersquill.tool.shelf"),
+					() -> open(new ShelfScreen(host.asScreen(), null))));
 			y += size;
 			add.accept(new IconButton(x, y, Icons.EXPORT, Text.translatable("roleplayersquill.tool.export"),
 					() -> open(new ExportScreen(host.asScreen(), view))));
@@ -137,6 +144,29 @@ public final class ReadTools {
 		say(kept
 				? Text.translatable("roleplayersquill.reader.kept").formatted(Formatting.GREEN)
 				: Text.translatable("roleplayersquill.reader.kept.failed").formatted(Formatting.RED));
+	}
+
+	/**
+	 * Puts the book on the shelf the moment it is opened, and says nothing about it.
+	 *
+	 * <p>Because the moment a copy is wanted is the moment there is no longer a book to press a
+	 * button on: the book was in the hand of somebody who is now dead, or it was lent back, or the
+	 * lectern it stood on has been broken. A book that has been read is a book that was in front of
+	 * this client once, and keeping it then costs a file nobody notices.
+	 *
+	 * <p>Filed under what is written in it, so reading the same book every day keeps one copy of it
+	 * rather than one a day. A blank book is not kept at all: {@link BookIO#keepSigned} refuses it.
+	 */
+	public void keepOnOpen() {
+		if (!QuillConfig.get().keepOpenedBooks) {
+			return;
+		}
+		try {
+			BookIO.keepSigned(view.document(), view.encodePages());
+		} catch (RuntimeException error) {
+			// A book that will not be copied is still a book that can be read.
+			com.glamardor.roleplayersquill.RoleplayersQuill.LOGGER.warn("Could not shelve this book", error);
+		}
 	}
 
 	/** A line under the book for a few seconds, the way the editor answers for what it just did. */
@@ -224,6 +254,21 @@ public final class ReadTools {
 
 	// ---- rendering --------------------------------------------------------------------------------
 
+	/**
+	 * The dark strip the find bar stands on, drawn before the widgets rather than after them.
+	 *
+	 * <p>Everything else this class draws goes at the tail of the book's own render, which is after
+	 * the screen has drawn its widgets – and that is where it belongs, since a selection is drawn
+	 * over the page. The strip is the one thing that is a background: drawn at the tail it went on
+	 * top of the very box it is the backing for, and left the text field looking greyed out and the
+	 * words in it half washed away.
+	 */
+	public void renderUnder(DrawContext context) {
+		if (QuillConfig.get().readerTools && findBar != null) {
+			findBar.renderBehind(context);
+		}
+	}
+
 	public void render(DrawContext context, TextRenderer textRenderer, int screenWidth, int screenHeight,
 			double mouseX, double mouseY) {
 		QuillConfig config = QuillConfig.get();
@@ -254,7 +299,6 @@ public final class ReadTools {
 					view.matchNeedle(), view.matchOrdinalOnPage());
 		}
 		if (findBar != null) {
-			findBar.renderBehind(context);
 			findBar.renderTally(context, textRenderer);
 		}
 	}

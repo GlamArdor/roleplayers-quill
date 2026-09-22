@@ -72,6 +72,18 @@ public final class BookIO {
 		return FabricLoader.getInstance().getConfigDir().resolve(RoleplayersQuill.MOD_ID).resolve("templates");
 	}
 
+	/**
+	 * The shelf: every book that has been read here, kept whole.
+	 *
+	 * <p>Apart from the drafts on purpose. A draft is a convenience and is thrown away once there are
+	 * a hundred and fifty of them; a book somebody lent to be read, or one's own book now lying in a
+	 * lava pool with the corpse that carried it, is the thing being kept – and an evening of writing
+	 * drafts should not quietly push last month's library off the end.
+	 */
+	private static Path libraryDir() {
+		return FabricLoader.getInstance().getConfigDir().resolve(RoleplayersQuill.MOD_ID).resolve("library");
+	}
+
 	/** Sets of formatting live beside the templates, in a folder of their own. */
 	private static Path setDir() {
 		return FabricLoader.getInstance().getConfigDir().resolve(RoleplayersQuill.MOD_ID).resolve("sets");
@@ -208,6 +220,26 @@ public final class BookIO {
 			trimmed = "book";
 		}
 		return trimmed + "-" + LocalDateTime.now().format(STAMP) + "." + extension;
+	}
+
+	/**
+	 * The name somebody typed for a book they are exporting, as a file can hold it.
+	 *
+	 * <p>Nothing is added to it – no date, no title – because a name that was typed is a name that
+	 * was meant. The dated {@link #suggestName} is what happens when nothing was typed, which is the
+	 * case where a name has to be invented and had better not collide with the last invented one.
+	 */
+	public static String fileNameFor(String typed, String fallbackTitle, String extension) {
+		String trimmed = typed == null ? "" : LegacyCodec.strip(typed).strip();
+		if (trimmed.isEmpty()) {
+			return suggestName(fallbackTitle, extension);
+		}
+		StringBuilder safe = new StringBuilder();
+		for (char c : trimmed.toCharArray()) {
+			safe.append(Character.isLetterOrDigit(c) || c == '-' || c == '_' || c == ' ' ? c : '_');
+		}
+		String name = safe.toString().strip();
+		return (name.isEmpty() ? "book" : name) + "." + extension;
 	}
 
 	// ---- text -------------------------------------------------------------------------------------
@@ -394,21 +426,125 @@ public final class BookIO {
 			return false;
 		}
 		String key = keyOf(encodedPages, "signed");
-		Path file = draftDir().resolve(key + ".json");
+		Path file = libraryDir().resolve(key + ".json");
 		try {
 			Files.createDirectories(file.getParent());
 			DocumentDto dto = toDto(document);
 			dto.signed = true;
+			// Named after what is written in it rather than after the moment it was read, so that the
+			// same book read twice is the same book on the shelf. A signed book cannot change; a
+			// second reading of it that arrived under a fresh random name would be a second copy in
+			// every list, and the list is meant to be a shelf rather than a log of what was opened.
+			dto.id = "signed-" + key;
 			try (Writer writer = Files.newBufferedWriter(file, StandardCharsets.UTF_8)) {
 				GSON.toJson(dto, writer);
 			}
-			rememberPages(document.id(), key, encodedPages, true);
-			pruneDrafts();
+			rememberPages(dto.id, key, encodedPages, true);
+			pruneLibrary();
 			return true;
 		} catch (IOException error) {
 			RoleplayersQuill.LOGGER.warn("Could not keep the book at {}", file, error);
 			return false;
 		}
+	}
+
+	// ---- the books somebody said were the ones that matter ----------------------------------------
+
+	/**
+	 * Which books are starred, kept beside them rather than in them.
+	 *
+	 * <p>In a file of its own on purpose. A star is about the reader, not about the book: writing it
+	 * into the book's own file would mean rewriting the book to press a star, which changes when the
+	 * book was last written, and a shelf ordered by that would reshuffle itself under the hand that
+	 * touched it.
+	 *
+	 * <p>Books are starred by the name they go by between sessions, so a starred book that is
+	 * written back, read again or filed afresh is the same starred book. See {@link QuillDocument#id}.
+	 */
+	private static java.util.Set<String> cachedFavourites;
+
+	public static java.util.Set<String> favourites() {
+		if (cachedFavourites != null) {
+			return cachedFavourites;
+		}
+		java.util.Set<String> starred = new java.util.LinkedHashSet<>();
+		Path file = favouritesFile();
+		if (Files.isRegularFile(file)) {
+			try (Reader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
+				FavouritesDto dto = GSON.fromJson(reader, FavouritesDto.class);
+				if (dto != null && dto.books != null) {
+					for (String id : dto.books) {
+						if (id != null && !id.isBlank()) {
+							starred.add(id);
+						}
+					}
+				}
+			} catch (IOException | RuntimeException error) {
+				RoleplayersQuill.LOGGER.debug("Could not read {}", file, error);
+			}
+		}
+		cachedFavourites = starred;
+		return cachedFavourites;
+	}
+
+	public static boolean isFavourite(String id) {
+		return favourites().contains(id);
+	}
+
+	/** Stars a book or unstars it, and writes it down at once: this is one line in a small file. */
+	public static void setFavourite(String id, boolean starred) {
+		java.util.Set<String> all = favourites();
+		if (starred ? !all.add(id) : !all.remove(id)) {
+			return;
+		}
+		FavouritesDto dto = new FavouritesDto();
+		dto.format = FORMAT;
+		dto.books = new ArrayList<>(all);
+		Path file = favouritesFile();
+		try {
+			Files.createDirectories(file.getParent());
+			try (Writer writer = Files.newBufferedWriter(file, StandardCharsets.UTF_8)) {
+				GSON.toJson(dto, writer);
+			}
+		} catch (IOException error) {
+			RoleplayersQuill.LOGGER.warn("Could not write {}", file, error);
+		}
+	}
+
+	private static Path favouritesFile() {
+		return FabricLoader.getInstance().getConfigDir().resolve(RoleplayersQuill.MOD_ID)
+				.resolve("favourites.json");
+	}
+
+	static final class FavouritesDto {
+		int format;
+		List<String> books;
+	}
+
+	/**
+	 * Takes a book off the shelf for good, every file of it.
+	 *
+	 * <p>Every file, because one row is one book: leaving the second copy behind would only mean the
+	 * book came back tomorrow under its own line, which is not what anybody pressing this meant.
+	 *
+	 * <p>A starred book is never removed here. That is not this method being careful on the caller's
+	 * behalf – the shelf says so before it ever calls – it is the one rule about starred books being
+	 * kept in the one place that can keep it.
+	 */
+	public static boolean forget(Kept book) {
+		if (isFavourite(book.document().id())) {
+			return false;
+		}
+		boolean done = true;
+		for (Path file : book.copies()) {
+			try {
+				Files.deleteIfExists(file);
+			} catch (IOException error) {
+				RoleplayersQuill.LOGGER.warn("Could not remove {}", file, error);
+				done = false;
+			}
+		}
+		return done;
 	}
 
 	@Nullable
@@ -801,8 +937,19 @@ public final class BookIO {
 		List<String> written;
 	}
 
-	/** One book kept on this computer, as it was last written. */
-	public record Kept(String name, QuillDocument document, long when) {
+	/**
+	 * One book kept on this computer, as it was last written.
+	 *
+	 * @param file   where it lies, so that a book can be read back whole or taken off the shelf
+	 * @param signed a book that was read rather than written here
+	 * @param copies every file this one book is in, its own among them; see {@link #allBooks}
+	 */
+	public record Kept(String name, QuillDocument document, long when, Path file, boolean signed,
+			List<Path> copies) {
+		/** Who signed it, when anybody did. */
+		public String author() {
+			return document.author();
+		}
 	}
 
 	/**
@@ -821,14 +968,139 @@ public final class BookIO {
 	 */
 	public static List<Kept> allBooks() {
 		List<Kept> out = new ArrayList<>();
-		Path dir = draftDir();
+		// Both shelves: the books that were read, which are kept on purpose, and the drafts of the
+		// books that were written, which are kept because they had to be kept anyway.
+		gather(libraryDir(), true, out);
+		gather(draftDir(), false, out);
+		out.sort((a, b) -> Long.compare(b.when(), a.when()));
+
+		// Twice over: the same book, and a different book that is word for word the same book. The
+		// first catches a book saved every ten minutes all evening; the second catches the copy an
+		// older version of this mod filed among the drafts beside the copy this one files on the
+		// shelf, which are one reading of one book and have no business being two lines in a list.
+		//
+		// The files that lose are not forgotten, they are gathered onto the one that wins. A row on
+		// the shelf is a book, and what is done to a book has to be done to every file it is in –
+		// otherwise removing a book leaves its twin on disk to come back as a new row tomorrow, and
+		// renaming one leaves a differently named copy of it standing right behind it.
+		java.util.Map<String, String> group = new java.util.HashMap<>();
+		java.util.LinkedHashMap<String, List<Kept>> together = new java.util.LinkedHashMap<>();
+		for (Kept book : out) {
+			// Every file of one book goes wherever that book's newest file went, whatever an older
+			// file of it happens to say – it is the same book by the only name a book has.
+			String key = group.computeIfAbsent(book.document().id(), id -> wordsOf(book.document()));
+			together.computeIfAbsent(key, k -> new ArrayList<>()).add(book);
+		}
+
+		List<Kept> shelf = new ArrayList<>(together.size());
+		for (List<Kept> same : together.values()) {
+			// The newest of them, except that a book written here beats a copy of it that was read
+			// back: a draft still holds the links and the exact colours that a page of a signed book
+			// can no longer carry, so it is the better of two copies of the same words.
+			Kept best = same.get(0);
+			for (Kept other : same) {
+				if (best.signed() && !other.signed()) {
+					best = other;
+					break;
+				}
+			}
+			List<Path> copies = new ArrayList<>(same.size());
+			for (Kept one : same) {
+				copies.add(one.file());
+			}
+			shelf.add(new Kept(best.name(), best.document(), best.when(), best.file(), best.signed(),
+					List.copyOf(copies)));
+		}
+		return shelf;
+	}
+
+	// ---- what a book on the shelf is called --------------------------------------------------------
+
+	/**
+	 * Gives a kept book a different name.
+	 *
+	 * <p>A book read off a server is called whatever whoever signed it called it, and a draft is
+	 * called by the first line anybody happened to type – neither of which is necessarily what it is
+	 * to the person who kept it. "Указ о пошлинах" beats "Без названия" in a list of two hundred, and
+	 * the name travels: restoring the book into a blank one puts this name on it.
+	 *
+	 * <p>Every file the book is in is renamed, or the twin left behind would stand beside it in the
+	 * list under the old name. The date is put back afterwards: the shelf is ordered by when a book
+	 * was last written, and renaming a book is not writing it.
+	 */
+	public static boolean rename(Kept book, String title) {
+		String trimmed = title.length() > QuillDocument.MAX_TITLE
+				? title.substring(0, QuillDocument.MAX_TITLE) : title;
+		boolean done = true;
+		for (Path file : book.copies()) {
+			done &= retitle(file, trimmed);
+		}
+		if (done) {
+			book.document().setTitle(trimmed);
+		}
+		return done;
+	}
+
+	private static boolean retitle(Path file, String title) {
+		DocumentDto dto = readDocumentDto(file);
+		if (dto == null) {
+			return false;
+		}
+		dto.title = title;
+		try {
+			var was = Files.getLastModifiedTime(file);
+			try (Writer writer = Files.newBufferedWriter(file, StandardCharsets.UTF_8)) {
+				GSON.toJson(dto, writer);
+			}
+			Files.setLastModifiedTime(file, was);
+			return true;
+		} catch (IOException error) {
+			RoleplayersQuill.LOGGER.warn("Could not rename {}", file, error);
+			return false;
+		}
+	}
+
+	/**
+	 * Everything a reader would call the book: its name, who signed it, and what it says.
+	 *
+	 * <p>Two books are the same book here when nothing a reader could point at is different. The
+	 * spacing is not one of those things – it is how the page was justified on whatever machine
+	 * wrote it – so it comes out, along with the codes, exactly as in {@link #markOf}. What is left
+	 * is the words, in the pages they are on.
+	 *
+	 * <p>Deliberately not forgiving beyond that. Two drafts of one book differ by a word somewhere,
+	 * which is the whole reason there are two of them, and that word is enough to keep them apart.
+	 */
+	private static String wordsOf(QuillDocument document) {
+		StringBuilder out = new StringBuilder(document.title()).append(' ').append(document.author());
+		for (List<Paragraph> page : document.pages()) {
+			out.append('\f');
+			for (Paragraph paragraph : page) {
+				String tidy = LegacyCodec.strip(paragraph.text()).replaceAll("\\s+", " ").strip();
+				if (!tidy.isEmpty()) {
+					out.append(tidy).append('\n');
+				}
+			}
+		}
+		return out.toString();
+	}
+
+	/** Every book in one folder, read whole. */
+	private static void gather(Path dir, boolean shelf, List<Kept> into) {
 		if (!Files.isDirectory(dir)) {
-			return out;
+			return;
 		}
 		try (var stream = Files.list(dir)) {
 			for (Path file : stream.filter(BookIO::isDraftFile).toList()) {
-				QuillDocument document = readDocument(file);
-				if (document == null || document.pageCount() == 0) {
+				DocumentDto dto = readDocumentDto(file);
+				if (dto == null) {
+					continue;
+				}
+				// Copies of other people's books used to be filed among the drafts, so which folder a
+				// book is in does not settle what it is; the file says so itself.
+				boolean signed = shelf || dto.signed;
+				QuillDocument document = fromDto(dto);
+				if (document.pageCount() == 0) {
 					continue;
 				}
 				long when;
@@ -837,21 +1109,11 @@ public final class BookIO {
 				} catch (IOException error) {
 					when = 0L;
 				}
-				out.add(new Kept(nameOf(document), document, when));
+				into.add(new Kept(nameOf(document), document, when, file, signed, List.of(file)));
 			}
 		} catch (IOException error) {
-			RoleplayersQuill.LOGGER.debug("Could not read the drafts", error);
+			RoleplayersQuill.LOGGER.debug("Could not read the books in {}", dir, error);
 		}
-		out.sort((a, b) -> Long.compare(b.when(), a.when()));
-
-		List<Kept> newest = new ArrayList<>(out.size());
-		java.util.Set<String> seen = new java.util.HashSet<>();
-		for (Kept book : out) {
-			if (seen.add(book.document().id())) {
-				newest.add(book);
-			}
-		}
-		return newest;
 	}
 
 	/** What to call a book in a list: its title, or the first thing written in it. */
@@ -869,16 +1131,32 @@ public final class BookIO {
 	}
 
 	private static void pruneDrafts() {
-		Path dir = draftDir();
+		// Fewer than there used to be, because a draft now carries its history with it and is a good
+		// deal heavier for it. A hundred and fifty books is still every book anyone has written this
+		// month.
+		prune(draftDir(), 150);
+	}
+
+	/**
+	 * The shelf holds a great deal more than the drafts do, and for a different reason.
+	 *
+	 * <p>A draft is the working copy of something that exists elsewhere; the shelf is where the only
+	 * copy of a burnt book is. So the ceiling is the one that keeps the folder from growing without
+	 * end rather than one that expects to be reached, and what goes first is whatever has not been
+	 * opened for longest.
+	 */
+	private static void pruneLibrary() {
+		prune(libraryDir(), 600);
+	}
+
+	private static void prune(Path dir, int keep) {
 		if (!Files.isDirectory(dir)) {
 			return;
 		}
 		try (var stream = Files.list(dir)) {
 			List<Path> files = new ArrayList<>(stream.filter(BookIO::isDraftFile).toList());
-			// Fewer than there used to be, because a draft now carries its history with it and is a
-			// good deal heavier for it. A hundred and fifty books is still every book anyone has
-			// written this month.
-			if (files.size() <= 150) {
+			int over = files.size() - keep;
+			if (over <= 0) {
 				return;
 			}
 			files.sort((a, b) -> {
@@ -888,12 +1166,30 @@ public final class BookIO {
 					return 0;
 				}
 			});
-			for (int i = 0; i < files.size() - 150; i++) {
+			for (int i = 0; i < files.size() && over > 0; i++) {
+				// A starred book is not tidied away, however long ago it was last opened. The ceiling
+				// is there to stop a folder growing without end; a book somebody went to the trouble
+				// of starring is the opposite of the thing the ceiling is aimed at, and it may well
+				// be the last copy of something. So the oldest unstarred book goes instead, and if
+				// they are all starred, nothing goes.
+				if (isStarred(files.get(i))) {
+					continue;
+				}
 				Files.deleteIfExists(files.get(i));
+				over--;
 			}
 		} catch (IOException error) {
-			RoleplayersQuill.LOGGER.debug("Could not tidy the drafts", error);
+			RoleplayersQuill.LOGGER.debug("Could not tidy {}", dir, error);
 		}
+	}
+
+	/** Whether the book in this file is one of the starred ones. */
+	private static boolean isStarred(Path file) {
+		if (favourites().isEmpty()) {
+			return false;
+		}
+		DocumentDto dto = readDocumentDto(file);
+		return dto != null && dto.id != null && isFavourite(dto.id);
 	}
 
 	// ---- the wire format ---------------------------------------------------------------------------
@@ -902,6 +1198,8 @@ public final class BookIO {
 		DocumentDto dto = new DocumentDto();
 		dto.format = FORMAT;
 		dto.title = document.title();
+		dto.author = document.author();
+		dto.lore = document.lore().isEmpty() ? null : new ArrayList<>(document.lore());
 		dto.id = document.id();
 		dto.pages = pagesToDto(document.pages());
 		dto.history = new ArrayList<>();
@@ -983,6 +1281,8 @@ public final class BookIO {
 		QuillDocument document = new QuillDocument();
 		document.pages().clear();
 		document.setTitle(dto.title == null ? "" : dto.title);
+		document.setAuthor(dto.author);
+		document.setLore(dto.lore);
 		document.setId(dto.id);
 		if (dto.pages == null || dto.pages.isEmpty()) {
 			document.pages().add(QuillDocument.newPage());
@@ -1027,6 +1327,10 @@ public final class BookIO {
 	static final class DocumentDto {
 		int format;
 		String title;
+		/** Who signed the book, where it was signed at all. */
+		String author;
+		/** Whatever the item carried under its name, kept as written with its codes. */
+		List<String> lore;
 		/** What the book is called between sessions; see QuillDocument.id. */
 		String id;
 		List<List<ParagraphDto>> pages;

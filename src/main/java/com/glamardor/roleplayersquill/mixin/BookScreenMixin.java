@@ -83,9 +83,28 @@ public abstract class BookScreenMixin extends Screen implements ReadHost {
 		if (roleplayersquill$tools == null) {
 			roleplayersquill$suppressed = Screen.hasShiftDown();
 			roleplayersquill$tools = new ReadTools(this);
+			// Once per book opened, not once per resize: init runs again every time the window
+			// changes shape or the find strip is toggled, and a copy kept per keystroke of that
+			// would be the same file written twenty times for nothing.
+			roleplayersquill$tools.keepOnOpen();
 		}
 		if (!roleplayersquill$suppressed) {
 			roleplayersquill$tools.addWidgets(this.width, this.height, this::addDrawableChild, this.textRenderer);
+		}
+	}
+
+	/**
+	 * The one thing this mod draws under the screen's own widgets rather than over them.
+	 *
+	 * <p>The book itself is drawn in {@code renderBackground}, which has already run by the time
+	 * this does, and the widgets are drawn by {@code render} itself – so this is the gap between
+	 * the two, and the only place a backing for a widget can go.
+	 */
+	@Inject(method = "render", at = @At("HEAD"))
+	private void roleplayersquill$renderUnder(DrawContext context, int mouseX, int mouseY, float delta,
+			CallbackInfo ci) {
+		if (roleplayersquill$tools != null && !roleplayersquill$suppressed) {
+			roleplayersquill$tools.renderUnder(context);
 		}
 	}
 

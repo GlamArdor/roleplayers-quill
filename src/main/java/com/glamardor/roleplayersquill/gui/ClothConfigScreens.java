@@ -151,6 +151,8 @@ final class ClothConfigScreens {
 				v -> config.readerTools = v));
 		reading.addEntry(toggle(entries, "reader_header", config.readerHeader, defaults.readerHeader,
 				v -> config.readerHeader = v));
+		reading.addEntry(toggle(entries, "keep_opened_books", config.keepOpenedBooks,
+				defaults.keepOpenedBooks, v -> config.keepOpenedBooks = v));
 
 		ConfigCategory elsewhere = builder.getOrCreateCategory(Text.translatable("roleplayersquill.category.elsewhere"));
 		elsewhere.addEntry(toggle(entries, "sign_editor", config.signEditor, defaults.signEditor,

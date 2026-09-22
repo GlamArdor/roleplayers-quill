@@ -68,6 +68,22 @@ evening's work is which. Restoring is an ordinary edit and a `Ctrl+Z` undoes it.
 same book when the server changes it from underneath – a plugin that tears a page out, say – because
 it is recognised by the pages it still has rather than by being byte for byte what it was.
 
+**A shelf, and getting a lost book back.** Every signed book is copied onto a shelf the moment it
+is opened – with its title, its author and whatever lore the item carried – and every book written
+here is on the same shelf as the draft it was written from. So when a book is gone, and books do go
+– dropped on death and burnt, lent and not returned, eaten by a plugin – the text is still here. The
+shelf lists them, shows the page beside the list, reads any of them back page by page, and writes
+one whole into the blank book in your hand: one press, not thirty pages through the clipboard. The
+title comes with it; the author does not, because whoever signs it next is who signed it. It is an
+ordinary edit, so `Ctrl+Z` undoes it and nothing reaches the server until the book is written back
+in the usual way. A book is filed under what is written in it, so the same book read every day is
+one book on the shelf rather than one a day, and two files that say word for word the same thing
+are one line in the list rather than two. A star at the end of a row keeps that book at the top of
+the shelf, which is what makes a shelf of two hundred usable, and a starred book is never tidied
+away to make room and never removed by the button that removes books: the star comes off first. The
+pencil beside the star gives the book a name of your own, which is the one it carries when it is
+restored.
+
 **Blocks you type over and over.** A dateline and a signature, ready made, alongside the page
 templates. The signature takes the name off the tab list rather than the account, without its colours
 and without the `[rank]` in front of it: on a roleplay server those are two different people.
@@ -89,10 +105,10 @@ actually carry.
 book screen, not a screen of its own, so any other mod that draws in it still can – but with a
 strip of buttons beside it. `Ctrl+F` finds a word across every page. One button lists the headings,
 built the same way a contents page is: bold and centred is what a heading looks like, whoever wrote
-it. Another lists every page with its opening line. A third keeps a copy in the same library a book
-written here is kept in, so it turns up later in a search across every book on this computer without
-having been written here at all. A fourth exports it to a file, in the format that imports straight
-back into a blank book for editing. None of this cares whether this mod wrote the book: the test for
+it. Another lists every page with its opening line. A third keeps a copy on the shelf by hand,
+which is only ever a second copy: the book went onto the shelf when it was opened. A fourth is the
+shelf itself, and a fifth exports the book to a file, in the format that imports straight back into
+a blank book for editing. None of this cares whether this mod wrote the book: the test for
 a heading is what it looks like, not a mark this mod left behind, so somebody else's book gets the
 same buttons.
 
@@ -215,6 +231,8 @@ The ones worth knowing about:
 - **Links and exact colour.** When to write a page as a component. `In creative` is the default.
 - **Code character.** What the chat and anvil bars insert. An ampersand by default, because a
   section sign in chat disconnects you.
+- **Keep every book you open.** On by default; it is what fills the shelf. Off means the shelf holds
+  only what was written here and what was kept by hand.
 
 ## Voice typing
 

@@ -158,6 +158,14 @@ public class QuillConfig {
 	public boolean readerTools = true;
 	/** The title, the author and which copy this is, in the book's own top border. */
 	public boolean readerHeader = true;
+	/**
+	 * Keep a copy of every signed book the moment it is opened.
+	 *
+	 * <p>The shelf is worth nothing if it has to be filled by hand: the moment a copy is wanted is
+	 * the moment the book is gone. One file per book actually read, filed under what is written in
+	 * it, so the same book read every day is still one book.
+	 */
+	public boolean keepOpenedBooks = true;
 
 	// ---- the other places text is typed ----------------------------------------------------------
 

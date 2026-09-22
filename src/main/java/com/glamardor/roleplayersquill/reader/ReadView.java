@@ -47,6 +47,13 @@ public final class ReadView implements BookView {
 		if (document == null) {
 			SignedBook.Info info = SignedBook.infoFor(host.asScreen());
 			document = SignedBook.documentFor(host.contents(), info == null ? "" : info.title());
+			// Everything about the book that is not written in it. Nothing here uses the author or
+			// the lore while the book is being read; they are carried so that the copy put on the
+			// shelf is a copy of the book rather than of its text.
+			if (info != null) {
+				document.setAuthor(info.author());
+				document.setLore(info.lore());
+			}
 		}
 		return document;
 	}
