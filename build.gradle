@@ -148,3 +148,18 @@ tasks.register('layoutCheck', JavaExec) {
 		mainClass = file('tools/LayoutCheck.java').absolutePath
 	}
 }
+
+tasks.register('vanillaCheck', JavaExec) {
+	group = 'verification'
+	description = 'Opens pages set without this mod and checks the editor draws them as the game does'
+	dependsOn tasks.named('classes')
+	classpath = sourceSets.main.runtimeClasspath
+	jvmArgs '-Dfile.encoding=UTF-8', '-Dstdout.encoding=UTF-8', '-Dstderr.encoding=UTF-8'
+	ignoreExitValue = true
+	doFirst {
+		mainClass = file('tools/VanillaCheck.java').absolutePath
+		def clientJar = new File(gradle.gradleUserHomeDir, "caches/fabric-loom/${project.minecraft_version}/minecraft-client.jar")
+		args = [clientJar.absolutePath, project.findProperty('drafts') ?: 'run/config/roleplayersquill/drafts',
+				project.findProperty('seed') ?: '1']
+	}
+}

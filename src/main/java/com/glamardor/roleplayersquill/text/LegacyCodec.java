@@ -643,13 +643,13 @@ public final class LegacyCodec {
 				continue;
 			}
 			if (c == '\n') {
-				paragraphs.add(finishLine(text, styles));
+				finishLine(paragraphs, text, styles);
 				continue;
 			}
 			text.append(c);
 			styles.add(style);
 		}
-		paragraphs.add(finishLine(text, styles));
+		finishLine(paragraphs, text, styles);
 		restoreLists(paragraphs);
 		return paragraphs;
 	}
@@ -670,10 +670,10 @@ public final class LegacyCodec {
 	 * a far worse bug than the one being fixed.
 	 */
 	public static void restoreLists(List<Paragraph> paragraphs) {
-		for (Paragraph paragraph : paragraphs) {
-			if (paragraph.text().startsWith(ListStyle.BULLET.marker(1).trim())
-					&& !ListStyle.BULLET.marker(1).trim().isEmpty()) {
-				strip(paragraph, ListStyle.BULLET.marker(1).trim().length(), ListStyle.BULLET);
+		String bullet = ListStyle.BULLET.marker(1).trim();
+		for (int i = 0; i < paragraphs.size(); i++) {
+			if (!bullet.isEmpty() && paragraphs.get(i).text().startsWith(bullet)) {
+				takeRun(paragraphs, i, 1, ListStyle.BULLET);
 			}
 		}
 
@@ -691,11 +691,14 @@ public final class LegacyCodec {
 				continue;
 			}
 			// A run has ended. One numbered line on its own is a sentence that happens to begin with
-			// a figure far more often than it is a list of one.
-			if (start >= 0 && i - start >= 2) {
-				int ordinal = 1;
-				for (int j = start; j < i; j++) {
-					strip(paragraphs.get(j), numberedMarker(paragraphs.get(j), ordinal++), ListStyle.NUMBER);
+			// a figure far more often than it is a list of one. And only as much of the run as keeps
+			// every item in its place is taken, from the top: an item left as text in the middle
+			// would start the numbering again below it, and every number after it would change.
+			if (start >= 0) {
+				for (int count = i - start; count >= 2; count--) {
+					if (takeRun(paragraphs, start, count, ListStyle.NUMBER)) {
+						break;
+					}
 				}
 			}
 			start = -1;
@@ -754,35 +757,65 @@ public final class LegacyCodec {
 		return paragraph.text().startsWith(wanted) ? wanted.length() : -1;
 	}
 
-	/** Takes the marker and the blanks behind it off the front, and makes the paragraph a list item. */
-	private static void strip(Paragraph paragraph, int markerLength, ListStyle style) {
-		if (markerLength <= 0) {
-			return;
+	/**
+	 * Makes these paragraphs a list, if as a list every one of them is drawn exactly as it was written.
+	 *
+	 * <p>A list item is laid out differently from the line it came from: the gap after its marker is
+	 * ours, the marker is drawn in the style of the text behind it, the numbers of a run share one
+	 * indent, and wrapped lines hang under the text. A page written without this mod – a bullet typed
+	 * by hand, a line the game wrapped back to the margin – would come back longer than it was and no
+	 * longer fit. So the items are laid out for real and compared, and taken only when nothing on the
+	 * page moves.
+	 */
+	private static boolean takeRun(List<Paragraph> paragraphs, int from, int count, ListStyle style) {
+		List<Paragraph> written = new ArrayList<>();
+		List<Paragraph> items = new ArrayList<>();
+		List<Integer> gaps = new ArrayList<>();
+		for (int k = 0; k < count; k++) {
+			Paragraph paragraph = paragraphs.get(from + k);
+			int markerLength = style == ListStyle.BULLET ? ListStyle.BULLET.marker(1).trim().length()
+					: numberedMarker(paragraph, k + 1);
+			if (markerLength <= 0) {
+				return false;
+			}
+			int end = markerLength;
+			while (end < paragraph.length() && paragraph.charAt(end) == ' ') {
+				end++;
+			}
+			if (end >= paragraph.length()) {
+				// Nothing but the marker: leave it alone rather than turn it into an empty list item.
+				return false;
+			}
+			if (!paragraph.styleAt(0).lookOnly().equals(paragraph.styleAt(end).lookOnly())) {
+				return false;
+			}
+			Paragraph item = paragraph.copy();
+			item.delete(0, end);
+			item.setList(style);
+			written.add(paragraph);
+			items.add(item);
+			gaps.add(end);
 		}
-		int end = markerLength;
-		while (end < paragraph.length() && paragraph.charAt(end) == ' ') {
-			end++;
+
+		List<Layout.LaidLine> before = Layout.lay(new ArrayList<>(written), Layout.Options.DEFAULT);
+		List<Layout.LaidLine> after = Layout.lay(new ArrayList<>(items), Layout.Options.DEFAULT);
+		if (before.size() != count || after.size() != count) {
+			return false;
 		}
-		if (end >= paragraph.length()) {
-			// Nothing but the marker: leave it alone rather than turn it into an empty list item.
-			return;
+		for (int k = 0; k < count; k++) {
+			Layout.LaidLine was = before.get(k);
+			Layout.LaidLine now = after.get(k);
+			float textWas = was.leftPad.width() + widthOf(written.get(k), 0, gaps.get(k));
+			float textNow = now.leftPad.width() + Widths.widthOf(now.marker, now.markerStyle.bold())
+					+ now.markerPad.width();
+			if (now.paragraph != k || Math.abs(textWas - textNow) > 0.01f) {
+				return false;
+			}
 		}
-		// A list item is laid out differently from the line it came from: its gap after the marker
-		// is ours, and its wrapped lines hang under the text. A page written without this mod – a
-		// bullet typed by hand, a line the game wrapped back to the margin – would come back longer
-		// than it was and no longer fit. Only take the item when nothing on the page moves.
-		boolean bold = paragraph.styleAt(0).bold();
-		float written = widthOf(paragraph, 0, end);
-		float ours = Layout.hangingIndentOf(paragraph.text().substring(0, markerLength), bold);
-		if (Math.abs(written - ours) > 0.5f) {
-			return;
+		for (int k = 0; k < count; k++) {
+			paragraphs.set(from + k, items.get(k));
 		}
-		float indent = paragraph.indent() * Layout.INDENT_SPACES * Widths.space();
-		if (indent + widthOf(paragraph, 0, paragraph.length()) > Layout.PAGE_WIDTH) {
-			return;
-		}
-		paragraph.delete(0, end);
-		paragraph.setList(style);
+		return true;
 	}
 
 	private static float widthOf(Paragraph paragraph, int from, int to) {
@@ -794,11 +827,69 @@ public final class LegacyCodec {
 	}
 
 	/** Turns the characters gathered so far into a paragraph and empties the buffers. */
-	private static Paragraph finishLine(StringBuilder text, List<QuillStyle> styles) {
-		Paragraph paragraph = buildLine(text.toString(), styles);
+	private static void finishLine(List<Paragraph> paragraphs, StringBuilder text, List<QuillStyle> styles) {
+		int spilled = spilledBlankLines(text, styles);
+		paragraphs.add(buildLine(text.toString(), styles));
+		for (int i = 0; i < spilled; i++) {
+			paragraphs.add(new Paragraph());
+		}
 		text.setLength(0);
 		styles.clear();
-		return paragraph;
+	}
+
+	/**
+	 * How many lines of nothing but blanks the game draws after this line.
+	 *
+	 * <p>Blanks left at the end of a full line do not vanish: the game breaks at the last of them
+	 * that tips the line over and carries the rest down, where they make a line that shows nothing
+	 * and still takes up room. The layout drops trailing blanks instead, because a line of them is
+	 * never what anybody typing here meant – so on a page written elsewhere, what they did to the
+	 * page is kept as the empty lines it came to, and everything below stays where it was.
+	 */
+	private static int spilledBlankLines(CharSequence text, List<QuillStyle> styles) {
+		int length = text.length();
+		int content = length;
+		while (content > 0 && text.charAt(content - 1) == ' ' && !styles.get(content - 1).marksBlanks()) {
+			content--;
+		}
+		if (length == 0 || text.charAt(length - 1) != ' ') {
+			return 0;
+		}
+		// TextHandler.LineBreakingVisitor, one line at a time.
+		int spilled = 0;
+		int start = 0;
+		while (start < length) {
+			float total = 0.0f;
+			boolean nonEmpty = false;
+			int lastSpace = -1;
+			int cut = -1;
+			for (int i = start; i < length; i++) {
+				char c = text.charAt(i);
+				if (c == ' ') {
+					lastSpace = i;
+				}
+				float advance = Widths.advance(c, styles.get(i).bold());
+				total += advance;
+				if (nonEmpty && total > Layout.PAGE_WIDTH) {
+					cut = lastSpace != -1 ? lastSpace : i;
+					break;
+				}
+				nonEmpty |= advance != 0.0f;
+			}
+			if (start > 0 && start >= content) {
+				spilled++;
+			}
+			if (cut < 0) {
+				break;
+			}
+			start = Math.max(start + 1, text.charAt(cut) == ' ' ? cut + 1 : cut);
+			if (start >= length) {
+				// The blank that tipped the line over was the last thing on it. The game's next
+				// line then starts at the line break itself, and ends there too: one more empty line.
+				spilled++;
+			}
+		}
+		return spilled;
 	}
 
 	private static Paragraph buildLine(String raw, List<QuillStyle> runStyles) {
@@ -840,14 +931,21 @@ public final class LegacyCodec {
 		int cut = 0;
 		Alignment alignment = null;
 		int indent = 0;
-		if (lead > 0 && slack > 0.0f) {
+		// Blanks that are drawn on – underlined or struck through – are a rule, not a way of pushing
+		// text along, and a line of nothing but blanks has no text to push. Either way they stay text.
+		boolean drawn = false;
+		for (int i = 0; i < lead; i++) {
+			drawn |= styles.get(i).marksBlanks();
+		}
+		if (lead > 0 && slack > 0.0f && bodyWidth > 0.0f && !drawn) {
 			if (Math.abs(padWidth - slack / 2.0f) <= 2.5f) {
 				alignment = Alignment.CENTER;
 				cut = lead;
 			} else if (Math.abs(padWidth - slack) <= 2.5f) {
 				alignment = Alignment.RIGHT;
 				cut = lead;
-			} else if (step > 0.0f && Math.abs(padWidth - Math.round(padWidth / step) * step) <= 0.5f) {
+			} else if (step > 0.0f && padWidth + bodyWidth <= Layout.PAGE_WIDTH
+					&& Math.abs(padWidth - Math.round(padWidth / step) * step) <= 0.5f) {
 				indent = Math.round(padWidth / step);
 				cut = lead;
 			}
@@ -861,7 +959,19 @@ public final class LegacyCodec {
 		if (indent > 0) {
 			paragraph.setIndent(indent);
 		}
+		if (cut > 0 && !landsWhereWritten(paragraph, padWidth)) {
+			// Near enough is not the same place. Laid out again it would move by a pixel or two, or
+			// stop fitting on its line, and the page is no longer the one its author wrote.
+			paragraph = new Paragraph();
+			paragraph.insert(0, text.toString(), styles);
+		}
 		return paragraph;
+	}
+
+	/** Whether this paragraph, laid out by us, starts exactly where the blanks in front of it put it. */
+	private static boolean landsWhereWritten(Paragraph paragraph, float padWidth) {
+		List<Layout.LaidLine> laid = Layout.lay(new ArrayList<>(List.of(paragraph)), Layout.Options.DEFAULT);
+		return laid.size() == 1 && Math.abs(laid.get(0).leftPad.width() - padWidth) < 0.01f;
 	}
 
 	private static QuillStyle applyCode(QuillStyle style, char code) {
