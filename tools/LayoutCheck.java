@@ -387,6 +387,18 @@ public final class LayoutCheck {
 		expect(laidOut <= byTheGame,
 				"the game wraps this page into " + byTheGame + " lines and this mod lays it into " + laidOut);
 
+		// Bullets typed by hand: the game wraps a long one back to the margin, and a bullet may have
+		// no blank after it at all. Taking either for a list item hangs its second line under the
+		// text and puts our own gap after the marker, and the page no longer fits.
+		String[] typed = {"• персональные данные Исполнителя;", "• занимаемая должность;",
+				"•размер вознаграждения;", "•особые условия (при наличии)."};
+		for (String line : typed) {
+			List<Paragraph> read = LegacyCodec.decode(line);
+			int game = greedyLines(line);
+			int ours = Layout.lay(read, Layout.Options.DEFAULT).size();
+			expect(ours <= game, "\"" + line + "\" is " + game + " lines in the game and " + ours + " here");
+		}
+
 		// An indent this mod wrote is still read back as an indent: it lands on a whole step, which
 		// is the difference between a measurement and a guess.
 		List<Paragraph> stepped = LegacyCodec.decode("        Отступ.");

@@ -332,7 +332,13 @@ public final class Layout {
 	/** How far in a list item's text starts, marker and gap together. For reading a book back. */
 	public static float hangingIndentOf(String marker) {
 		String glyph = trimEnd(marker);
-		return glyph.isEmpty() ? 0.0f : hangingIndent(Widths.widthOf(glyph, false));
+		return hangingIndentOf(marker, false);
+	}
+
+	/** The same, for a marker drawn bold or not. */
+	public static float hangingIndentOf(String marker, boolean bold) {
+		String glyph = trimEnd(marker);
+		return glyph.isEmpty() ? 0.0f : hangingIndent(Widths.widthOf(glyph, bold));
 	}
 
 	/** The marker without the blank the list style puts after it. */

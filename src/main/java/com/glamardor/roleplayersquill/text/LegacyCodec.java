@@ -767,8 +767,30 @@ public final class LegacyCodec {
 			// Nothing but the marker: leave it alone rather than turn it into an empty list item.
 			return;
 		}
+		// A list item is laid out differently from the line it came from: its gap after the marker
+		// is ours, and its wrapped lines hang under the text. A page written without this mod – a
+		// bullet typed by hand, a line the game wrapped back to the margin – would come back longer
+		// than it was and no longer fit. Only take the item when nothing on the page moves.
+		boolean bold = paragraph.styleAt(0).bold();
+		float written = widthOf(paragraph, 0, end);
+		float ours = Layout.hangingIndentOf(paragraph.text().substring(0, markerLength), bold);
+		if (Math.abs(written - ours) > 0.5f) {
+			return;
+		}
+		float indent = paragraph.indent() * Layout.INDENT_SPACES * Widths.space();
+		if (indent + widthOf(paragraph, 0, paragraph.length()) > Layout.PAGE_WIDTH) {
+			return;
+		}
 		paragraph.delete(0, end);
 		paragraph.setList(style);
+	}
+
+	private static float widthOf(Paragraph paragraph, int from, int to) {
+		float width = 0.0f;
+		for (int i = from; i < to; i++) {
+			width += Widths.advance(paragraph.charAt(i), paragraph.styleAt(i).bold());
+		}
+		return width;
 	}
 
 	/** Turns the characters gathered so far into a paragraph and empties the buffers. */
