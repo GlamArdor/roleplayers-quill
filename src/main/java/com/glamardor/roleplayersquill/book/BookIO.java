@@ -422,7 +422,7 @@ public final class BookIO {
 	 *         like it did nothing
 	 */
 	public static boolean keepSigned(QuillDocument document, List<String> encodedPages) {
-		if (isBlank(encodedPages)) {
+		if (isBlank(encodedPages) || isPageRipper(document)) {
 			return false;
 		}
 		String key = keyOf(encodedPages, "signed");
@@ -446,6 +446,38 @@ public final class BookIO {
 			RoleplayersQuill.LOGGER.warn("Could not keep the book at {}", file, error);
 			return false;
 		}
+	}
+
+	/** The two marks a page ripper puts over the page it offers: cancel, then confirm. */
+	private static final java.util.regex.Pattern RIPPER_MARKS =
+			java.util.regex.Pattern.compile("\\[[✖✗✘×xX❌]\\]\\[[✔✓√☑✅vV]\\]");
+
+	/**
+	 * Whether this is not a book at all but the page-ripping plugin asking which page to tear out.
+	 *
+	 * <p>The server shows the page in a book of its own, "MyBook" by "Bob", with a red cross and a
+	 * green tick over it that run {@code /rip}. Every page torn out leaves one of these behind, each
+	 * a copy of the book it was torn from, and the shelf filled with them. Known by the commands
+	 * first, since those say what the book is for; by the two marks over the first page when the
+	 * commands did not survive, as on a page read without the components.
+	 */
+	public static boolean isPageRipper(QuillDocument document) {
+		if (document.pageCount() == 0) {
+			return false;
+		}
+		for (Paragraph paragraph : document.page(0)) {
+			for (int i = 0; i < paragraph.length(); i++) {
+				String command = paragraph.styleAt(i).command();
+				if (command != null && command.startsWith("/rip ")) {
+					return true;
+				}
+			}
+			String text = LegacyCodec.strip(paragraph.text()).replaceAll("\\s+", "");
+			if (!text.isEmpty()) {
+				return RIPPER_MARKS.matcher(text).matches();
+			}
+		}
+		return false;
 	}
 
 	// ---- the books somebody said were the ones that matter ----------------------------------------
@@ -1100,7 +1132,7 @@ public final class BookIO {
 				// book is in does not settle what it is; the file says so itself.
 				boolean signed = shelf || dto.signed;
 				QuillDocument document = fromDto(dto);
-				if (document.pageCount() == 0) {
+				if (document.pageCount() == 0 || isPageRipper(document)) {
 					continue;
 				}
 				long when;
