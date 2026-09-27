@@ -546,6 +546,36 @@ public final class Layout {
 		return x;
 	}
 
+	/**
+	 * Where the caret goes when the blanks in front of it have run off the right edge of the page.
+	 *
+	 * <p>The blanks at the end of a paragraph hang off the line they follow, because on the page they
+	 * are not written at all. But the moment anything is typed after them the game wraps there: the
+	 * blank that went over the edge is the one the line ends at and is thrown away, and every blank
+	 * after it starts the next line. The caret is shown where that next character will land rather
+	 * than out in the margin, past the edge of the book, where nothing will ever be drawn.
+	 *
+	 * @return the caret's offset on the line below, or -1 when it is still on this one
+	 */
+	public static float xAfterSpill(LaidLine line, Paragraph paragraph, int index) {
+		if (index <= line.contentEnd || index > line.end) {
+			return -1.0f;
+		}
+		float x = xOf(line, paragraph, line.contentEnd);
+		float below = -1.0f;
+		for (int i = line.contentEnd; i < index; i++) {
+			float advance = Widths.advance(paragraph.charAt(i), paragraph.styleAt(i).bold());
+			if (below >= 0.0f) {
+				below += advance;
+			} else if (x + advance > PAGE_WIDTH) {
+				below = 0.0f;
+			} else {
+				x += advance;
+			}
+		}
+		return below;
+	}
+
 	/** The character a click at this offset lands on, clamped to the line. */
 	public static int indexAt(LaidLine line, Paragraph paragraph, float x) {
 		float at = line.frame.textLeft() + line.leftPad.width();

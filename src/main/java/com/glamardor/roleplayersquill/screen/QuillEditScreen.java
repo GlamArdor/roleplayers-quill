@@ -841,8 +841,20 @@ public class QuillEditScreen extends Screen {
 
 		if (blink / 6 % 2 == 0 && caretLine < Math.min(lines.size(), Layout.PAGE_LINES)) {
 			Layout.LaidLine line = lines.get(caretLine);
-			float x = TEXT_X + Layout.xOf(line, page.get(line.paragraph), editor.caret());
-			int y = TEXT_Y + caretLine * Layout.LINE_HEIGHT;
+			Paragraph paragraph = page.get(line.paragraph);
+			float x = TEXT_X + Layout.xOf(line, paragraph, editor.caret());
+			int row = caretLine;
+			float spilled = Layout.xAfterSpill(line, paragraph, editor.caret());
+			if (spilled >= 0.0f) {
+				// Blanks typed past the edge: the caret goes where the next letter will appear.
+				if (caretLine + 1 < Layout.PAGE_LINES) {
+					row = caretLine + 1;
+					x = TEXT_X + Math.min(spilled, Layout.PAGE_WIDTH);
+				} else {
+					x = TEXT_X + Layout.PAGE_WIDTH;
+				}
+			}
+			int y = TEXT_Y + row * Layout.LINE_HEIGHT;
 			context.fill((int) x, y - 1, (int) x + 1, y + 9, INK);
 		}
 	}

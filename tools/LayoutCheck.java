@@ -53,6 +53,7 @@ public final class LayoutCheck {
 		checkReaderAgrees();
 		checkPlainStaysPlain();
 		checkNoBlackAcrossBreaks();
+		checkCaretSpill();
 		checkHeldTogether();
 		checkPageBudget();
 
@@ -1039,6 +1040,28 @@ public final class LayoutCheck {
 				"an old page lost text on the way: " + again.replace(LegacyCodec.SECTION, '&'));
 		System.out.println("  and an old page mends itself: |"
 				+ again.replace(LegacyCodec.SECTION, '&').replace("\n", "¶") + "|");
+	}
+
+	/** Blanks typed past the right edge put the caret where the next letter will land. */
+	private static void checkCaretSpill() {
+		section("Blanks typed past the edge take the caret to the next line");
+		String word = "а".repeat(19);
+		for (int[] c : new int[][] {{0, -1}, {1, -1}, {2, 4}, {8, 28}}) {
+			Paragraph p = new Paragraph(word + " ".repeat(c[0]), QuillStyle.PLAIN);
+			List<Layout.LaidLine> lines = Layout.lay(List.of(p), Layout.Options.DEFAULT);
+			Layout.LaidLine last = lines.get(lines.size() - 1);
+			float got = Layout.xAfterSpill(last, p, p.length());
+			expect(got == c[1], c[0] + " blanks: caret at " + got + " on the next line, wanted " + c[1]);
+			// And that is where the game puts a letter typed there.
+			Paragraph typed = new Paragraph(word + " ".repeat(c[0]) + "в", QuillStyle.PLAIN);
+			List<Layout.LaidLine> after = Layout.lay(List.of(typed), Layout.Options.DEFAULT);
+			if (c[1] >= 0) {
+				Layout.LaidLine next = after.get(after.size() - 1);
+				expect(after.size() == lines.size() + 1
+						&& Layout.xOf(next, typed, typed.length() - 1) == c[1],
+						c[0] + " blanks: the letter lands elsewhere");
+			}
+		}
 	}
 
 	/**
