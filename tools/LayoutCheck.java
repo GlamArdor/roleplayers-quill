@@ -52,6 +52,7 @@ public final class LayoutCheck {
 		checkBlankRemainder();
 		checkReaderAgrees();
 		checkPlainStaysPlain();
+		checkNoBlackAcrossBreaks();
 		checkHeldTogether();
 		checkPageBudget();
 
@@ -1038,6 +1039,61 @@ public final class LayoutCheck {
 				"an old page lost text on the way: " + again.replace(LegacyCodec.SECTION, '&'));
 		System.out.println("  and an old page mends itself: |"
 				+ again.replace(LegacyCodec.SECTION, '&').replace("\n", "¶") + "|");
+	}
+
+	/**
+	 * The page from the torn cheque: a name underlined across a break the game makes by itself,
+	 * with plain text after it. The underline is carried over the break, so {@code §r} there would
+	 * put it back – and for a long time the answer was black ink, which a torn page shows as black
+	 * on a dark tooltip. Black is not an answer at all any more, bold or underlined.
+	 */
+	private static void checkNoBlackAcrossBreaks() {
+		section("A formatted name broken by the game leaves nothing black behind");
+		for (QuillStyle name : List.of(QuillStyle.PLAIN.withUnderlined(true),
+				QuillStyle.PLAIN.withBold(true), QuillStyle.PLAIN.withBold(true).withUnderlined(true),
+				QuillStyle.PLAIN.withStrikethrough(true).withColor(0x5555FF))) {
+			List<Paragraph> page = new ArrayList<>();
+			page.add(new Paragraph("Чек на оплату", QuillStyle.PLAIN.withBold(true).withUnderlined(true)));
+			page.add(new Paragraph());
+			Paragraph body = new Paragraph();
+			body.insert(body.length(), "Я ", QuillStyle.PLAIN);
+			body.insert(body.length(), "Элиандрэль фон Сильверхейм", name);
+			body.insert(body.length(), " прошу Монетный Двор передать в пользу префектуры сумму в: "
+					+ "1зол. 72жел. 32мед. С счёта ", QuillStyle.PLAIN);
+			body.insert(body.length(), "Кастиэля За Квинтарго", name);
+			body.insert(body.length(), " за покупку территории по адресу: Защита от сил добра и зла 2.",
+					QuillStyle.PLAIN);
+			page.add(body);
+			page.add(new Paragraph());
+			page.add(new Paragraph("Подпись", QuillStyle.PLAIN));
+
+			List<Layout.LaidLine> lines = Layout.lay(page, Layout.Options.DEFAULT);
+			String written = LegacyCodec.encode(page, lines);
+			expect(written.indexOf(LegacyCodec.SECTION + "0") < 0,
+					"black ink was spent on: " + written.replace(LegacyCodec.SECTION, '&').replace("\n", "¶"));
+			List<String> wanted = expected(page, lines, true);
+			List<String> got = resolved(written, true);
+			int wrong = wanted.size() == got.size() ? 0 : -1;
+			String firstWrong = "sizes " + wanted.size() + " / " + got.size();
+			for (int i = 0; wrong >= 0 && i < wanted.size(); i++) {
+				if (!wanted.get(i).equals(got.get(i))) {
+					if (wrong == 0) {
+						firstWrong = "editor " + wanted.get(i) + " but reader " + got.get(i);
+					}
+					wrong++;
+				}
+			}
+			expect(wrong == 0, wrong + " characters come out wrong, first is " + firstWrong + ": "
+					+ written.replace(LegacyCodec.SECTION, '&').replace("\n", "¶"));
+			if (wrong == 0) {
+				System.out.println("  |" + written.replace(LegacyCodec.SECTION, '&').replace("\n", "¶") + "|");
+			}
+		}
+
+		// Black asked for by hand is taken as no colour at all: same ink in the book, readable anywhere else.
+		expect(QuillStyle.PLAIN.withColor(0x000000).color() == QuillStyle.INHERIT, "black stays black");
+		expect(QuillStyle.PLAIN.withColor(0x101010).color() == QuillStyle.INHERIT, "near-black stays black");
+		expect(QuillStyle.PLAIN.withColor(0x555555).color() == 0x555555, "dark grey was taken for black");
 	}
 
 	/**

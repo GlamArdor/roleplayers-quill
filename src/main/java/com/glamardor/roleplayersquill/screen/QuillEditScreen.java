@@ -1110,9 +1110,9 @@ public class QuillEditScreen extends Screen {
 	 * nothing at all while quietly needing mending on every one of them.
 	 *
 	 * <p>And asked properly: not "is there ink on this page" but "would writing it again take some
-	 * off". Some cannot be taken off – a paragraph the game breaks up in the middle of something
-	 * bold has nowhere to put a {@code §r} – and a book that cannot be mended must not be offered
-	 * for mending, or it says the same thing every time it is opened for the rest of its life.
+	 * off". Writing never puts black on a page any more, so the answer is yes wherever there is any –
+	 * but should that ever stop being true, a book that cannot be mended must not be offered for
+	 * mending, or it says the same thing every time it is opened for the rest of its life.
 	 */
 	private void offerToMend() {
 		if (mendOffered) {

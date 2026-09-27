@@ -3,7 +3,9 @@ package com.glamardor.roleplayersquill.text;
 import net.minecraft.text.Text;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Writes a page out as the string a vanilla server will accept, and reads one back in.
@@ -57,20 +59,46 @@ public final class LegacyCodec {
 	 * @param lines the lines {@link Layout} broke them into, already padded
 	 */
 	public static String encode(List<Paragraph> page, List<Layout.LaidLine> lines) {
-		Writer written = write(page, lines, false);
+		Writer written = write(page, lines, false, false, Set.of());
 		if (written.inked() == 0) {
 			return written.toString();
 		}
 		// Somewhere on this page "no formatting at all" had to be spelled as black ink, because §r
-		// would have meant something else where it stood. Written again, this time spending two
-		// characters at the end of every line that would otherwise hand its formatting on, §r means
-		// what it says and the ink is not needed. Worth doing only where it buys something, which is
-		// why the frugal attempt comes first.
-		Writer clean = write(page, lines, true);
-		return clean.inked() < written.inked() ? clean.toString() : written.toString();
+		// would have meant something else where it stood. Black is not an answer anybody can live
+		// with: the torn-page plugin carries it onto a dark tooltip and the sentence is gone. So the
+		// page is written again, each time paying a little more, until nothing on it is black.
+		//
+		// First by spending two characters at the end of every line that would otherwise hand its
+		// formatting on.
+		written = write(page, lines, true, false, Set.of());
+		if (written.inked() == 0) {
+			return written.toString();
+		}
+		// Then by writing the blank the game breaks a line at plain even where it is underlined,
+		// struck through or scrambled. It is the last thing on its line, so what is lost is four
+		// pixels of underline hanging past the last word – nothing a reader misses.
+		written = write(page, lines, true, true, Set.of());
+		// And last by writing the breaks out in the paragraphs that still need black, which is the
+		// one place §r always means what it says. A bold blank at a break ends up here: written plain
+		// it is a pixel narrower, and the game might break the line somewhere else.
+		Set<Integer> spelled = new HashSet<>();
+		while (written.inked() > 0) {
+			int paragraph = written.firstInkedParagraph();
+			if (paragraph < 0 || !spelled.add(paragraph)) {
+				// What spills over from a paragraph above: every break on the page written out.
+				for (Layout.LaidLine line : lines) {
+					spelled.add(line.paragraph);
+				}
+				written = write(page, lines, true, true, spelled);
+				break;
+			}
+			written = write(page, lines, true, true, spelled);
+		}
+		return written.toString();
 	}
 
-	private static Writer write(List<Paragraph> page, List<Layout.LaidLine> lines, boolean keepResetPlain) {
+	private static Writer write(List<Paragraph> page, List<Layout.LaidLine> lines, boolean keepResetPlain,
+			boolean plainBreaks, Set<Integer> spelledOut) {
 		Writer writer = new Writer(keepResetPlain);
 		int last = worthWriting(lines);
 		int at = 0;
@@ -87,8 +115,9 @@ public final class LegacyCodec {
 				writer.newLine();
 			}
 			started = true;
+			writer.paragraph = index;
 
-			if (needsNoPixels(page, lines, at, after)) {
+			if (!spelledOut.contains(index) && needsNoPixels(page, lines, at, after)) {
 				// Written the way somebody without this mod would have written it: straight through,
 				// with the break at the end of the paragraph and nowhere else, because the game wraps
 				// it at the same places this mod just laid it out at.
@@ -97,7 +126,7 @@ public final class LegacyCodec {
 				// a page rather than draw it can see it. The server's torn-page plugin turns each one
 				// into a line of its own, so a page written here came out double spaced while the same
 				// page typed by anybody else came out right.
-				encodeStraight(writer, page.get(index), lines, at, after);
+				encodeStraight(writer, page.get(index), lines, at, after, plainBreaks);
 			} else {
 				for (int i = at; i < after; i++) {
 					if (i > at) {
@@ -219,7 +248,7 @@ public final class LegacyCodec {
 	 * than a plain one, and one that is underlined or struck through is drawn after all.
 	 */
 	private static void encodeStraight(Writer writer, Paragraph paragraph,
-			List<Layout.LaidLine> lines, int at, int after) {
+			List<Layout.LaidLine> lines, int at, int after, boolean plainBreaks) {
 		int to = lines.get(after - 1).contentEnd;
 		int next = at + 1;
 		for (int i = lines.get(at).start; i < to; i++) {
@@ -229,7 +258,7 @@ public final class LegacyCodec {
 			}
 			QuillStyle style = paragraph.styleAt(i);
 			if (next < after && i >= lines.get(next - 1).contentEnd && writer.wouldSayPlain()
-					&& !style.bold() && !style.marksBlanks()) {
+					&& !style.bold() && (plainBreaks || !style.marksBlanks())) {
 				style = QuillStyle.PLAIN;
 			}
 			writer.style(style);
@@ -396,6 +425,10 @@ public final class LegacyCodec {
 		private boolean resetIsPlain = true;
 		/** How often plain text had to be written as black ink instead. */
 		private int inked;
+		/** The paragraph being written, so that ink can be traced back to one. */
+		private int paragraph = -1;
+		/** The paragraph where plain text first had to be written black, or -1. */
+		private int firstInkedParagraph = -1;
 
 		public Writer() {
 			this(false);
@@ -408,6 +441,11 @@ public final class LegacyCodec {
 		/** How often this page had to say "black" where it meant "nothing". */
 		public int inked() {
 			return inked;
+		}
+
+		/** Where on the page the first black ink went, as a paragraph index; -1 for nowhere. */
+		public int firstInkedParagraph() {
+			return firstInkedParagraph;
 		}
 
 		/**
@@ -531,7 +569,9 @@ public final class LegacyCodec {
 					color = -1;
 				} else {
 					if (inkless) {
-						inked++;
+						if (inked++ == 0) {
+							firstInkedParagraph = paragraph;
+						}
 					}
 					code(COLOR_CODES[want]);
 					color = want;

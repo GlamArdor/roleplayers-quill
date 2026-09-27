@@ -42,6 +42,19 @@ public record QuillStyle(
 	/** No colour of its own: whatever the book is printed in. */
 	public static final int INHERIT = -1;
 
+	/**
+	 * Black is not a colour this editor writes. In the book it is the ink the page is printed in
+	 * anyway, so asking for it is taken as asking for no colour at all – which looks the same on
+	 * parchment and, unlike black, stays readable where a page is carried off to: a torn page's lore,
+	 * a tooltip, a chat line. Anything whose nearest named colour is black goes the same way, since
+	 * a {@code §} code would round it to black regardless.
+	 */
+	public QuillStyle {
+		if (color != INHERIT && nearestLegacyIndex(color) == 0) {
+			color = INHERIT;
+		}
+	}
+
 	public static final QuillStyle PLAIN =
 			new QuillStyle(false, false, false, false, false, INHERIT, null, null, null, null, 0);
 
@@ -137,9 +150,10 @@ public record QuillStyle(
 
 	/** Index into {@link #LEGACY_COLORS}, or -1 when the ink is to be left alone. */
 	public int legacyColorIndex() {
-		if (color == INHERIT) {
-			return -1;
-		}
+		return color == INHERIT ? -1 : nearestLegacyIndex(color);
+	}
+
+	private static int nearestLegacyIndex(int rgb) {
 		int best = 0;
 		int bestDistance = Integer.MAX_VALUE;
 		for (int i = 0; i < LEGACY_COLORS.length; i++) {
@@ -147,7 +161,7 @@ public record QuillStyle(
 			if (value == null) {
 				continue;
 			}
-			int distance = distance(color, value);
+			int distance = distance(rgb, value);
 			if (distance < bestDistance) {
 				bestDistance = distance;
 				best = i;
