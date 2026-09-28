@@ -4,6 +4,10 @@ A book editor for people who write in Minecraft. Select a passage, make it bold,
 left, centre, right or justified – and the book that comes out is an ordinary vanilla book that
 everybody can read, with no mod and no resource pack.
 
+![a title page in the editor: centred bold title, italic byline, a rule and justified text](gallery/1-cover.png)
+
+![the same page on the vanilla reading screen, with nothing installed](gallery/2-reader-without-mod.png)
+
 Client side only. The server is never told this exists.
 
 > **Status:** in use on a roleplay server where most people do not have it, which is the case that
@@ -122,6 +126,18 @@ never draws in. The buttons and the header are each a setting of their own, on b
 reading one that way leaves the buttons off too. Other mods add to the vanilla screens –
 [ImagineBook](https://modrinth.com/mod/imaginebook) puts pictures on a page through the editor –
 and replacing either outright would mean quietly removing a feature this mod knows nothing about.
+
+![a price list with dotted leaders from each item to its price](gallery/7-price-list-leaders.png)
+
+![a few words selected and the colour palette open](gallery/3-selection-and-colour.png)
+
+![the find strip under the book, on the third match of eight](gallery/4-find.png)
+
+![the book's history: saved versions on the left, the chosen one previewed on the right](gallery/5-history.png)
+
+![templates and formatting sets, with a signature about to go in](gallery/6-templates-and-sets.png)
+
+![the symbol strip under the book, searching for arrows](gallery/8-symbols.png)
 
 ## The thing that makes it work
 
