@@ -43,6 +43,16 @@ public abstract class SignEditScreenMixin extends Screen {
 	@Final
 	protected net.minecraft.block.entity.SignBlockEntity blockEntity;
 
+	@Shadow
+	private int currentRow;
+
+	@Shadow
+	protected abstract float getYOffset();
+
+	@Shadow
+	private void setCurrentRowMessage(String message) {
+	}
+
 	/** Whether the whole browser is showing under the sign. Survives the rebuild it causes. */
 	@Unique
 	private boolean roleplayersquill$symbolsOpen;
@@ -92,12 +102,90 @@ public abstract class SignEditScreenMixin extends Screen {
 					this::addDrawableChild, this.textRenderer);
 		}
 
+		roleplayersquill$addClipboard();
+
 		if (config.chatFormatting) {
 			List<IconButton> codes = CodeToolbar.build(owner, LegacyCodec.SECTION, insert);
 			CodeToolbar.place(codes, this.width / 2, y - IconButton.SIZE - 1);
 			for (IconButton button : codes) {
 				addDrawableChild(button);
 			}
+		}
+	}
+
+	/**
+	 * Copy, paste and clear, in a column to the left of the sign, as Stendhal has them.
+	 *
+	 * <p>Through the system clipboard, one row to a line, so a sign can be copied onto another sign
+	 * or written somewhere else first and pasted in whole. Pasting replaces all four rows: a row the
+	 * clipboard has no line for is emptied, and a line too wide for the sign is cut where the sign
+	 * would have stopped taking letters.
+	 */
+	@Unique
+	private void roleplayersquill$addClipboard() {
+		java.util.function.BooleanSupplier written = () -> {
+			for (String line : messages) {
+				if (line != null && !line.isEmpty()) {
+					return true;
+				}
+			}
+			return false;
+		};
+		List<IconButton> buttons = List.of(
+				new IconButton(0, 0, com.glamardor.roleplayersquill.screen.Icons.PAGE_COPY,
+						Text.translatable("roleplayersquill.tool.sign_copy"), this::roleplayersquill$copy)
+						.onlyWhen(written),
+				new IconButton(0, 0, com.glamardor.roleplayersquill.screen.Icons.PAGE_PASTE,
+						Text.translatable("roleplayersquill.tool.sign_paste"), this::roleplayersquill$paste),
+				new IconButton(0, 0, com.glamardor.roleplayersquill.screen.Icons.CLEAR,
+						Text.translatable("roleplayersquill.tool.sign_clear"),
+						() -> roleplayersquill$setAll(new String[0])).onlyWhen(written));
+		int x = this.width / 2 - 64 - IconButton.SIZE;
+		int top = Math.round(getYOffset()) - (buttons.size() * (IconButton.SIZE + 1)) / 2;
+		for (int i = 0; i < buttons.size(); i++) {
+			IconButton button = buttons.get(i);
+			button.setPosition(x, top + i * (IconButton.SIZE + 1));
+			addDrawableChild(button);
+		}
+	}
+
+	@Unique
+	private void roleplayersquill$copy() {
+		int last = messages.length;
+		while (last > 0 && (messages[last - 1] == null || messages[last - 1].isEmpty())) {
+			last--;
+		}
+		StringBuilder out = new StringBuilder();
+		for (int row = 0; row < last; row++) {
+			if (row > 0) {
+				out.append('\n');
+			}
+			out.append(messages[row] == null ? "" : messages[row]);
+		}
+		this.client.keyboard.setClipboard(out.toString());
+	}
+
+	@Unique
+	private void roleplayersquill$paste() {
+		String clipboard = this.client.keyboard.getClipboard();
+		if (clipboard == null || clipboard.isEmpty()) {
+			return;
+		}
+		roleplayersquill$setAll(clipboard.split("\r?\n|\r", -1));
+	}
+
+	/** Writes every row through the screen's own setter, so the sign in the world follows too. */
+	@Unique
+	private void roleplayersquill$setAll(String[] lines) {
+		int width = blockEntity.getMaxTextWidth();
+		for (int row = 0; row < messages.length; row++) {
+			String line = row < lines.length ? net.minecraft.util.StringHelper.stripInvalidChars(lines[row]) : "";
+			currentRow = row;
+			setCurrentRowMessage(this.textRenderer.trimToWidth(line, width));
+		}
+		currentRow = 0;
+		if (selectionManager != null) {
+			selectionManager.putCursorAtEnd();
 		}
 	}
 
