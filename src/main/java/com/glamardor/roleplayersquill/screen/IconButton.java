@@ -65,6 +65,20 @@ public class IconButton extends ClickableWidget {
 	}
 
 
+	/**
+	 * Never takes the focus from the keyboard.
+	 *
+	 * <p>Since 1.21.6 a screen moves the focus with the arrow keys, and the chat asks it to before it
+	 * looks for the up arrow itself – so with this row over the chat box, the up arrow that should
+	 * bring back the last message walked onto a button and left its tooltip over the chat. The
+	 * buttons are for the mouse; the arrows belong to whatever is being typed in.
+	 */
+	@Override
+	public net.minecraft.client.gui.navigation.GuiNavigationPath getNavigationPath(
+			net.minecraft.client.gui.navigation.GuiNavigation navigation) {
+		return null;
+	}
+
 	/** Used by the colour button, which draws its icon in whatever colour is chosen. */
 	public IconButton inColour(int rgb) {
 		this.markColor = 0xFF000000 | rgb;
