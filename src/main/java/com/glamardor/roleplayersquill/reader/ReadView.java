@@ -1,5 +1,6 @@
 package com.glamardor.roleplayersquill.reader;
 
+import com.glamardor.roleplayersquill.book.Bookmarks;
 import com.glamardor.roleplayersquill.config.QuillConfig;
 import com.glamardor.roleplayersquill.screen.BookView;
 import com.glamardor.roleplayersquill.text.Layout;
@@ -66,6 +67,62 @@ public final class ReadView implements BookView {
 	@Override
 	public void setPage(int index) {
 		host.jumpTo(index);
+	}
+
+	// ---- the bookmark -----------------------------------------------------------------------------
+
+	/** What this book is filed under among the bookmarks; worked out once, the first time it is asked. */
+	@Nullable
+	private String bookmarkKey;
+	/** The marked page, or -1; -2 until the file has been asked. */
+	private int bookmark = -2;
+
+	/**
+	 * Every copy of a signed book is the same book, so it is filed under what makes it that book:
+	 * its title, its author and its text, read straight off the pages the screen was given rather
+	 * than through {@link #document()} – which would decode the whole book only to be hashed.
+	 */
+	private String bookmarkKey() {
+		if (bookmarkKey == null) {
+			SignedBook.Info info = SignedBook.infoFor(host.asScreen());
+			int count = host.contents().getPageCount();
+			List<String> pages = new ArrayList<>(count);
+			for (int i = 0; i < count; i++) {
+				pages.add(host.contents().getPage(i).getString());
+			}
+			bookmarkKey = Bookmarks.keyOfSigned(info == null ? "" : info.title(), info == null ? "" : info.author(), pages);
+		}
+		return bookmarkKey;
+	}
+
+	@Override
+	public boolean canBookmark() {
+		return host.contents().getPageCount() > 0;
+	}
+
+	@Override
+	public int bookmark() {
+		if (bookmark == -2) {
+			bookmark = Bookmarks.find(bookmarkKey(), host.contents().getPageCount());
+		}
+		return bookmark;
+	}
+
+	@Override
+	public void setBookmark(int index) {
+		bookmark = index >= 0 && index < host.contents().getPageCount() ? index : -1;
+		// No words kept with it: a signed book never changes, so its page numbers never move.
+		Bookmarks.put(bookmarkKey(), bookmark, null);
+	}
+
+	@Override
+	public Bookmarks.Look bookmarkLook() {
+		return Bookmarks.look(bookmarkKey());
+	}
+
+	@Override
+	public void setBookmarkLook(Bookmarks.Look look) {
+		Bookmarks.setLook(bookmarkKey(), look);
 	}
 
 	@Override

@@ -87,6 +87,9 @@ public abstract class BookScreenMixin extends Screen implements ReadHost {
 			// changes shape or the find strip is toggled, and a copy kept per keystroke of that
 			// would be the same file written twenty times for nothing.
 			roleplayersquill$tools.keepOnOpen();
+			if (!roleplayersquill$suppressed) {
+				roleplayersquill$tools.openAtBookmark();
+			}
 		}
 		if (!roleplayersquill$suppressed) {
 			roleplayersquill$tools.addWidgets(this.width, this.height, this::addDrawableChild, this.textRenderer);
@@ -115,9 +118,14 @@ public abstract class BookScreenMixin extends Screen implements ReadHost {
 		}
 	}
 
-	@Inject(method = "mouseClicked", at = @At("HEAD"))
+	@Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
 	private void roleplayersquill$mouseClicked(double mouseX, double mouseY, int button,
 			CallbackInfoReturnable<Boolean> info) {
+		if (roleplayersquill$tools != null && !roleplayersquill$suppressed
+				&& roleplayersquill$tools.ribbonClicked(button, this.width, mouseX, mouseY)) {
+			info.setReturnValue(true);
+			return;
+		}
 		if (roleplayersquill$tools != null && !roleplayersquill$suppressed) {
 			roleplayersquill$tools.mousePressed(button, this.textRenderer, this.width, mouseX, mouseY);
 		}

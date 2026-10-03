@@ -111,6 +111,13 @@ public class FallbackConfigScreen extends Screen {
 		list.addWidget(toggle("keep_opened_books", () -> config.keepOpenedBooks,
 				v -> config.keepOpenedBooks = v));
 
+		list.addHeader(Text.translatable("roleplayersquill.category.bookmark"));
+		list.addWidget(toggle("open_at_bookmark", () -> config.openAtBookmark, v -> config.openAtBookmark = v));
+		list.addWidget(cycle("bookmark_colour", () -> config.bookmarkColour.label(),
+				() -> config.bookmarkColour = config.bookmarkColour.next()));
+		list.addWidget(cycle("bookmark_style", () -> config.bookmarkStyle.label(),
+				() -> config.bookmarkStyle = config.bookmarkStyle.next()));
+
 		list.addHeader(Text.translatable("roleplayersquill.category.elsewhere"));
 		list.addWidget(toggle("sign_editor", () -> config.signEditor, v -> config.signEditor = v));
 		list.addWidget(toggle("anvil_editor", () -> config.anvilEditor, v -> config.anvilEditor = v));

@@ -154,6 +154,28 @@ final class ClothConfigScreens {
 		reading.addEntry(toggle(entries, "keep_opened_books", config.keepOpenedBooks,
 				defaults.keepOpenedBooks, v -> config.keepOpenedBooks = v));
 
+		ConfigCategory bookmark = builder.getOrCreateCategory(Text.translatable("roleplayersquill.category.bookmark"));
+		bookmark.addEntry(toggle(entries, "open_at_bookmark", config.openAtBookmark, defaults.openAtBookmark,
+				v -> config.openAtBookmark = v));
+		var colourEntry = entries.startEnumSelector(text("bookmark_colour"), QuillConfig.BookmarkColour.class,
+						config.bookmarkColour)
+				.setDefaultValue(defaults.bookmarkColour)
+				.setEnumNameProvider(value -> ((QuillConfig.BookmarkColour) value).label())
+				.setTooltip(tooltip("bookmark_colour"))
+				.setSaveConsumer(v -> config.bookmarkColour = v)
+				.build();
+		bookmark.addEntry(colourEntry);
+		LIVE.add(() -> config.bookmarkColour = colourEntry.getValue());
+		var styleEntry = entries.startEnumSelector(text("bookmark_style"), QuillConfig.BookmarkStyle.class,
+						config.bookmarkStyle)
+				.setDefaultValue(defaults.bookmarkStyle)
+				.setEnumNameProvider(value -> ((QuillConfig.BookmarkStyle) value).label())
+				.setTooltip(tooltip("bookmark_style"))
+				.setSaveConsumer(v -> config.bookmarkStyle = v)
+				.build();
+		bookmark.addEntry(styleEntry);
+		LIVE.add(() -> config.bookmarkStyle = styleEntry.getValue());
+
 		ConfigCategory elsewhere = builder.getOrCreateCategory(Text.translatable("roleplayersquill.category.elsewhere"));
 		elsewhere.addEntry(toggle(entries, "sign_editor", config.signEditor, defaults.signEditor,
 				v -> config.signEditor = v));

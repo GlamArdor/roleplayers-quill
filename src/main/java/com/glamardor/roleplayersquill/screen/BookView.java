@@ -1,5 +1,6 @@
 package com.glamardor.roleplayersquill.screen;
 
+import com.glamardor.roleplayersquill.book.Bookmarks;
 import com.glamardor.roleplayersquill.text.QuillDocument;
 
 import java.util.List;
@@ -40,6 +41,32 @@ public interface BookView {
 
 	/** Only ever called from behind {@link #editable()}; a read-only view never has to implement it. */
 	default void duplicatePage() {
+	}
+
+	/**
+	 * Whether this book can carry a bookmark. Unlike everything above, a signed book can: the mark
+	 * is kept on this computer, not in the book, so nobody else's copy is touched by it.
+	 */
+	default boolean canBookmark() {
+		return false;
+	}
+
+	/** The page the bookmark is in, or -1 when there is none. */
+	default int bookmark() {
+		return -1;
+	}
+
+	/** Puts the bookmark in a page, moving it from wherever it was; -1 takes it out of the book. */
+	default void setBookmark(int index) {
+	}
+
+	/** The colour and shape of this book's bookmark. */
+	default Bookmarks.Look bookmarkLook() {
+		return Bookmarks.Look.DEFAULT;
+	}
+
+	/** Dresses this book's bookmark; does nothing while the book has none. */
+	default void setBookmarkLook(Bookmarks.Look look) {
 	}
 
 	/** Only ever called from behind {@link #editable()}; a read-only view never has to implement it. */

@@ -4,6 +4,7 @@ import com.glamardor.roleplayersquill.RoleplayersQuill;
 import com.glamardor.roleplayersquill.RoleplayersQuillClient;
 import com.glamardor.roleplayersquill.book.BookIO;
 import com.glamardor.roleplayersquill.book.BookSender;
+import com.glamardor.roleplayersquill.book.Bookmarks;
 import com.glamardor.roleplayersquill.book.DictionaryDownload;
 import com.glamardor.roleplayersquill.book.FileDialogs;
 import com.glamardor.roleplayersquill.config.QuillConfig;
@@ -134,6 +135,9 @@ public class QuillEditScreen extends Screen {
 	/** The menu over a misspelled word, and where on the screen it was opened. */
 	@Nullable
 	private SpellPopup spellPopup;
+	/** The colours and shapes for the bookmark, opened by a right click on it. */
+	@Nullable
+	private BookmarkPopup bookmarkPopup;
 	private int spellX;
 	private int spellY;
 	@Nullable
@@ -184,6 +188,12 @@ public class QuillEditScreen extends Screen {
 		}
 		this.editor = new PageEditor(document);
 		this.draftKey = List.copyOf(pages);
+		int mark = Bookmarks.find(Bookmarks.keyOf(document), document);
+		editor.restoreBookmark(mark);
+		if (mark >= 0 && QuillConfig.get().openAtBookmark) {
+			editor.setPage(mark);
+		}
+		editor.onBookmark(this::bookmarkMoved);
 		// A blank book is never opened as somebody's unfinished work, but if there is any, it is
 		// worth saying so: the alternative is that a crash quietly costs an evening.
 		this.recovery = BookIO.isBlank(pages) ? BookIO.blankDraft(ownerTag(hand)) : null;
@@ -322,6 +332,9 @@ public class QuillEditScreen extends Screen {
 		if (ornamentPopup != null && ornamentButton != null) {
 			ornamentPopup.layout(ornamentButton.getX(), ornamentButton.getY() + IconButton.SIZE + 1,
 					width, height);
+		}
+		if (bookmarkPopup != null) {
+			layoutBookmarkPopup();
 		}
 		if (spellPopup != null) {
 			// Down to the row of buttons and no further: below that is Sign and Done, which are
@@ -612,6 +625,7 @@ public class QuillEditScreen extends Screen {
 		context.drawTexture(RenderPipelines.GUI_TEXTURED, BookScreen.BOOK_TEXTURE,
 				0, 0, 0.0F, 0.0F, BOOK_SIZE, BOOK_SIZE, 256, 256);
 		drawPageNumber(context);
+		Ribbon.renderOnBook(context, editor, bookLocalX(mouseX), bookLocalY(mouseY), client.currentScreen == this);
 		drawPage(context);
 		drawArrows(context, mouseX, mouseY);
 		matrices.popMatrix();
@@ -640,11 +654,33 @@ public class QuillEditScreen extends Screen {
 		if (spellPopup != null) {
 			spellPopup.render(context, mouseX, mouseY);
 		}
+		if (bookmarkPopup != null) {
+			bookmarkPopup.render(context, mouseX, mouseY);
+		}
 
 		drawCounter(context);
 		drawDictation(context);
 		drawNotice(context);
 		drawLinkTooltip(context, mouseX, mouseY);
+		Text ribbonTip = bookmarkPopup != null ? null : Ribbon.tooltip(editor, bookLocalX(mouseX), bookLocalY(mouseY));
+		if (ribbonTip != null) {
+			context.drawTooltip(textRenderer, ribbonTip, mouseX, mouseY);
+		}
+	}
+
+	/** Under the bookmark, wherever the book is drawn and however large. */
+	private void layoutBookmarkPopup() {
+		bookmarkPopup.layout(bookX + (int) (Ribbon.X * scale), bookY + (int) (Ribbon.bottomOnBook(editor) * scale),
+				width, height);
+	}
+
+	/** A point on the screen in the coordinates of the book texture, the ones {@link Ribbon} draws in. */
+	private double bookLocalX(double mouseX) {
+		return (mouseX - bookX) / scale;
+	}
+
+	private double bookLocalY(double mouseY) {
+		return (mouseY - bookY) / scale;
 	}
 
 	/** What is under the cursor, if what is under the cursor can be clicked. */
@@ -1192,6 +1228,18 @@ public class QuillEditScreen extends Screen {
 			closeSpell();
 			return true;
 		}
+		if (bookmarkPopup != null) {
+			if (bookmarkPopup.contains(mouseX, mouseY)) {
+				return bookmarkPopup.pickAt(mouseX, mouseY);
+			}
+			bookmarkPopup = null;
+			return true;
+		}
+		if (button == 1 && Ribbon.overBookmark(editor, bookLocalX(mouseX), bookLocalY(mouseY))) {
+			bookmarkPopup = new BookmarkPopup(editor);
+			layoutBookmarkPopup();
+			return true;
+		}
 		if (button == 1 && openSpellMenu(mouseX, mouseY)) {
 			return true;
 		}
@@ -1231,6 +1279,9 @@ public class QuillEditScreen extends Screen {
 			return true;
 		}
 		if (super.mouseClicked(mouseX, mouseY, button)) {
+			return true;
+		}
+		if (button == 0 && Ribbon.click(editor, bookLocalX(mouseX), bookLocalY(mouseY))) {
 			return true;
 		}
 		// A click on an address follows it, signed book or not. Holding alt says the click was meant
@@ -1379,6 +1430,10 @@ public class QuillEditScreen extends Screen {
 		blink = 0;
 		if (keyCode == GLFW.GLFW_KEY_ESCAPE && spellPopup != null) {
 			closeSpell();
+			return true;
+		}
+		if (keyCode == GLFW.GLFW_KEY_ESCAPE && bookmarkPopup != null) {
+			bookmarkPopup = null;
 			return true;
 		}
 		if (keyCode == GLFW.GLFW_KEY_F7) {
@@ -2142,7 +2197,33 @@ public class QuillEditScreen extends Screen {
 	@Override
 	public void removed() {
 		keepDraft(true);
+		rememberBookmark();
 		Dictation.release();
+	}
+
+	/**
+	 * Writes the bookmark down the moment it is moved, and makes sure the book has a name to file it
+	 * under.
+	 *
+	 * <p>A book nobody has written in has no draft, and a book with no draft is given a new name
+	 * every time it is opened – the mark would be filed under a name nothing ever asks for again. So
+	 * marking a page keeps a draft of the book exactly as it is, which is all a name needs.
+	 */
+	private void bookmarkMoved() {
+		rememberBookmark();
+		if (!editor.isDirty() && !BookIO.isBlank(draftKey)) {
+			BookIO.saveDraft(editor.document(), draftKey, ownerTag(hand));
+		}
+	}
+
+	/**
+	 * Files the bookmark with the words of the page it is in, which change as the page is written –
+	 * so this runs again whenever the editor is left, not only when the mark is moved.
+	 */
+	private void rememberBookmark() {
+		int at = editor.bookmark();
+		Bookmarks.put(Bookmarks.keyOf(editor.document()), at,
+				at < 0 ? null : Bookmarks.markOf(editor.document().page(at)));
 	}
 
 	/**

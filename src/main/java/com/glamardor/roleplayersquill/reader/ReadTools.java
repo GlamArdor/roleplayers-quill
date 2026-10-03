@@ -2,18 +2,21 @@ package com.glamardor.roleplayersquill.reader;
 
 import com.glamardor.roleplayersquill.book.BookIO;
 import com.glamardor.roleplayersquill.config.QuillConfig;
+import com.glamardor.roleplayersquill.screen.BookmarkPopup;
 import com.glamardor.roleplayersquill.screen.ContentsScreen;
 import com.glamardor.roleplayersquill.screen.ExportScreen;
 import com.glamardor.roleplayersquill.screen.FindBar;
 import com.glamardor.roleplayersquill.screen.IconButton;
 import com.glamardor.roleplayersquill.screen.Icons;
 import com.glamardor.roleplayersquill.screen.PagesScreen;
+import com.glamardor.roleplayersquill.screen.Ribbon;
 import com.glamardor.roleplayersquill.screen.ShelfScreen;
 import com.glamardor.roleplayersquill.text.Layout;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.gui.screen.ingame.LecternScreen;
 import net.minecraft.client.gui.widget.ClickableWidget;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
@@ -51,6 +54,9 @@ public final class ReadTools {
 
 	@Nullable
 	private FindBar findBar;
+	/** The colours and shapes for the bookmark, opened by a right click on it. */
+	@Nullable
+	private BookmarkPopup bookmarkPopup;
 
 	@Nullable
 	private PageText cachedPageText;
@@ -169,6 +175,50 @@ public final class ReadTools {
 		}
 	}
 
+	/**
+	 * Turns to the bookmark, once, as the book is opened.
+	 *
+	 * <p>Never on a lectern. A lectern's page is the server's, shared with everyone standing at it,
+	 * and turning it there turns it for all of them – opening a book somebody else is reading at
+	 * your own bookmark is not something a ribbon in a real book could do either. The tab at the
+	 * top still turns to it on a click, which is a page turned on purpose.
+	 */
+	public void openAtBookmark() {
+		if (!QuillConfig.get().openAtBookmark || host.asScreen() instanceof LecternScreen) {
+			return;
+		}
+		int mark = view.bookmark();
+		if (mark > 0) {
+			host.jumpTo(mark);
+		}
+	}
+
+	/**
+	 * A click on the bookmark or on the panel that dresses it; true when it was one, so the book
+	 * does not answer it as well. While the panel is open every click is its, as with any menu:
+	 * inside it picks, outside it puts the panel away.
+	 */
+	public boolean ribbonClicked(int button, int screenWidth, double mouseX, double mouseY) {
+		if (bookmarkPopup != null) {
+			if (bookmarkPopup.contains(mouseX, mouseY)) {
+				return bookmarkPopup.pickAt(mouseX, mouseY);
+			}
+			bookmarkPopup = null;
+			return true;
+		}
+		double x = mouseX - bookLeft(screenWidth);
+		double y = mouseY - BOOK_TOP;
+		if (button == 1 && Ribbon.overBookmark(view, x, y)) {
+			bookmarkPopup = new BookmarkPopup(view);
+			return true;
+		}
+		return button == 0 && Ribbon.click(view, x, y);
+	}
+
+	private static int bookLeft(int screenWidth) {
+		return (screenWidth - BOOK_SIZE) / 2;
+	}
+
 	/** A line under the book for a few seconds, the way the editor answers for what it just did. */
 	private void say(Text message) {
 		notice = message;
@@ -196,6 +246,10 @@ public final class ReadTools {
 	// ---- input ------------------------------------------------------------------------------------
 
 	public boolean keyPressed(int keyCode, TextRenderer textRenderer) {
+		if (keyCode == GLFW.GLFW_KEY_ESCAPE && bookmarkPopup != null) {
+			bookmarkPopup = null;
+			return true;
+		}
 		if (!QuillConfig.get().readerTools) {
 			return false;
 		}
@@ -276,14 +330,34 @@ public final class ReadTools {
 
 		renderBanner(context, textRenderer, screenWidth, screenHeight);
 
+		// A dialog standing over the book draws the book behind it, which brings us back through
+		// here every frame. The pointer belongs to the panel then, not to the page under it.
+		boolean active = MinecraftClient.getInstance().currentScreen == host.asScreen();
+
+		// The bookmark is not one of the reader's tools: turning them off leaves the book as vanilla
+		// draws it, and a ribbon is part of the book rather than something beside it.
+		var matrices = context.getMatrices();
+		matrices.pushMatrix();
+		matrices.translate((float) bookLeft(screenWidth), (float) BOOK_TOP);
+		Ribbon.renderOnBook(context, view, mouseX - bookLeft(screenWidth), mouseY - BOOK_TOP, active);
+		matrices.popMatrix();
+		if (bookmarkPopup != null) {
+			// Laid out every frame rather than once: the window can change size under it.
+			bookmarkPopup.layout(bookLeft(screenWidth) + Ribbon.X, BOOK_TOP + Ribbon.bottomOnBook(view),
+					screenWidth, screenHeight);
+			bookmarkPopup.render(context, (int) mouseX, (int) mouseY);
+		} else if (active) {
+			Text tip = Ribbon.tooltip(view, mouseX - bookLeft(screenWidth), mouseY - BOOK_TOP);
+			if (tip != null) {
+				context.drawTooltip(textRenderer, tip, (int) mouseX, (int) mouseY);
+			}
+		}
+
 		if (!config.readerTools) {
 			return;
 		}
 
 		PageText page = currentPage(textRenderer);
-		// A dialog standing over the book draws the book behind it, which brings us back through
-		// here every frame. The pointer belongs to the panel then, not to the page under it.
-		boolean active = MinecraftClient.getInstance().currentScreen == host.asScreen();
 		boolean down = active && leftButtonHeld();
 		if (down && mouseWasDown && !suppressDrag) {
 			selection.drag(page, textRenderer, origin[0], origin[1], mouseX, mouseY);

@@ -103,6 +103,10 @@ public class PagesScreen extends DialogScreen {
 		int index = rowAt(mouseX, mouseY);
 		if (index >= 0) {
 			chosen = index;
+			if (button == 0 && overRibbon(mouseX)) {
+				view.setBookmark(view.bookmark() == index ? -1 : index);
+				Ribbon.playClick();
+			}
 			return true;
 		}
 		return super.mouseClicked(mouseX, mouseY, button);
@@ -113,6 +117,15 @@ public class PagesScreen extends DialogScreen {
 		scroll = MathHelper.clamp(scroll - (int) Math.signum(vertical), 0,
 				Math.max(0, view.document().pageCount() - VISIBLE));
 		return true;
+	}
+
+	/** Where in a row its bookmark hangs: the right end, past where the opening line is cut off. */
+	private int ribbonX() {
+		return panelX + panelWidth - 12 - 6 - Ribbon.WIDTH;
+	}
+
+	private boolean overRibbon(double mouseX) {
+		return view.canBookmark() && mouseX >= ribbonX() - 4 && mouseX < ribbonX() + Ribbon.WIDTH + 4;
 	}
 
 	private int rowAt(double mouseX, double mouseY) {
@@ -138,6 +151,7 @@ public class PagesScreen extends DialogScreen {
 		int listX = panelX + 12;
 		int listY = panelY + 24;
 		int hovered = rowAt(mouseX, mouseY);
+		int mark = view.canBookmark() ? view.bookmark() : -1;
 
 		for (int row = 0; row < VISIBLE; row++) {
 			int index = scroll + row;
@@ -155,6 +169,15 @@ public class PagesScreen extends DialogScreen {
 			context.drawText(textRenderer, Text.translatable("roleplayersquill.pages.chars",
 							LegacyCodec.strip(firstLine(view.document().page(index))).length())
 					.formatted(Formatting.DARK_GRAY), listX + 26, y + 12, 0xFFFFFFFF, false);
+			if (view.canBookmark()) {
+				Ribbon.drawInList(context, ribbonX(), y + 2, index == mark,
+						index == hovered && overRibbon(mouseX), index == hovered, view.bookmarkLook());
+			}
+		}
+
+		if (hovered >= 0 && overRibbon(mouseX)) {
+			context.drawTooltip(textRenderer, Text.translatable(hovered == mark
+					? "roleplayersquill.bookmark.remove.list" : "roleplayersquill.bookmark.put"), mouseX, mouseY);
 		}
 
 		context.drawCenteredTextWithShadow(textRenderer,
@@ -168,7 +191,8 @@ public class PagesScreen extends DialogScreen {
 		if (line.isBlank()) {
 			return Text.translatable("roleplayersquill.pages.empty").formatted(Formatting.DARK_GRAY);
 		}
-		return Text.literal(textRenderer.trimToWidth(line, panelWidth - 60));
+		// Short of the bookmark at the right end of the row, so the two never draw over each other.
+		return Text.literal(textRenderer.trimToWidth(line, panelWidth - 76));
 	}
 
 	private static String firstLine(List<Paragraph> page) {

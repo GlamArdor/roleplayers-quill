@@ -167,6 +167,18 @@ public class QuillConfig {
 	 */
 	public boolean keepOpenedBooks = true;
 
+	// ---- the bookmark -----------------------------------------------------------------------------
+
+	/**
+	 * Open a book on the page its bookmark is in, rather than on the first.
+	 *
+	 * <p>Off leaves the bookmark where it is and drawn as it was; it only stops the book jumping to
+	 * it, so the tab at the top is still there for the one click that does.
+	 */
+	public boolean openAtBookmark = true;
+	public BookmarkColour bookmarkColour = BookmarkColour.RED;
+	public BookmarkStyle bookmarkStyle = BookmarkStyle.RIBBON;
+
 	// ---- the other places text is typed ----------------------------------------------------------
 
 	public boolean signEditor = true;
@@ -214,6 +226,43 @@ public class QuillConfig {
 
 		public net.minecraft.text.Text label() {
 			return net.minecraft.text.Text.translatable("roleplayersquill.rich." + name().toLowerCase(java.util.Locale.ROOT));
+		}
+	}
+
+	/**
+	 * What the bookmark is dyed. Never black: see {@code QuillStyle}, the mod has no black ink
+	 * anywhere. Never white either – there was one, and on cream paper it all but vanished; a
+	 * bookmark saved as white comes back as the default.
+	 */
+	public enum BookmarkColour {
+		RED(0xB3312C), ORANGE(0xD8752A), GOLD(0xD9A62B), GREEN(0x3F8A3A), TEAL(0x2A8A86),
+		SKY(0x4E9AD6), BLUE(0x2E5BA8), PURPLE(0x7B3FA0), PINK(0xD0638F), BROWN(0x7A4A28);
+
+		public final int rgb;
+
+		BookmarkColour(int rgb) {
+			this.rgb = rgb;
+		}
+
+		public BookmarkColour next() {
+			return values()[(ordinal() + 1) % values().length];
+		}
+
+		public net.minecraft.text.Text label() {
+			return net.minecraft.text.Text.translatable("roleplayersquill.bookmark.colour." + name().toLowerCase(java.util.Locale.ROOT));
+		}
+	}
+
+	/** What the bookmark is: a silk ribbon, a cord with a tassel, a strip of leather, two ribbons, or a quill feather. */
+	public enum BookmarkStyle {
+		RIBBON, TASSEL, LEATHER, TWIN, FEATHER;
+
+		public BookmarkStyle next() {
+			return values()[(ordinal() + 1) % values().length];
+		}
+
+		public net.minecraft.text.Text label() {
+			return net.minecraft.text.Text.translatable("roleplayersquill.bookmark.style." + name().toLowerCase(java.util.Locale.ROOT));
 		}
 	}
 
@@ -281,6 +330,12 @@ public class QuillConfig {
 		}
 		if (richMode == null) {
 			richMode = RichMode.AUTO;
+		}
+		if (bookmarkColour == null) {
+			bookmarkColour = BookmarkColour.RED;
+		}
+		if (bookmarkStyle == null) {
+			bookmarkStyle = BookmarkStyle.RIBBON;
 		}
 		if (voiceModel == null || voiceModel.isBlank()) {
 			voiceModel = "ru-giga-rnnt";

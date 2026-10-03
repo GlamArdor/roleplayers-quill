@@ -122,6 +122,13 @@ and what is copied is the words, with the formatting codes and the alignment pad
 A name, an author and which copy this is sit in the book's own top border, the one place vanilla
 never draws in. The buttons and the header are each a setting of their own, on by default.
 
+**A bookmark.** One per book, hanging from the top of the page left of the page number. Click the
+empty spot there to mark the page, click the ribbon to take it out. On any other page only its end
+shows over the edge, and clicking that turns to the marked page. The book opens there next time,
+signed or not, and the page list shows it too. Right click the bookmark for its colour and shape: a
+ribbon, a cord with a tassel, a leather strap, twin ribbons or a quill feather. It is kept on your
+computer, never in the book, so nobody else's copy changes.
+
 **Sneak to get out of the way.** Opening a book while sneaking opens the vanilla editor instead, and
 reading one that way leaves the buttons off too. Other mods add to the vanilla screens –
 [ImagineBook](https://modrinth.com/mod/imaginebook) puts pictures on a page through the editor –
@@ -247,6 +254,9 @@ The ones worth knowing about:
 - **Links and exact colour.** When to write a page as a component. `In creative` is the default.
 - **Code character.** What the chat and anvil bars insert. An ampersand by default, because a
   section sign in chat disconnects you.
+- **Open at the bookmark.** On by default. Off opens every book on its first page; the bookmark
+  stays, and its end at the top still turns to it. A lectern never opens at it by itself, since a
+  lectern's page turns for everyone standing at it.
 - **Keep every book you open.** On by default; it is what fills the shelf. Off means the shelf holds
   only what was written here and what was kept by hand.
 

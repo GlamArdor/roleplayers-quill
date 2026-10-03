@@ -1,5 +1,6 @@
 package com.glamardor.roleplayersquill.screen;
 
+import com.glamardor.roleplayersquill.book.Bookmarks;
 import com.glamardor.roleplayersquill.config.QuillConfig;
 import com.glamardor.roleplayersquill.text.Alignment;
 import com.glamardor.roleplayersquill.text.AutoCorrect;
@@ -88,6 +89,83 @@ public final class PageEditor implements BookView {
 
 	public List<Paragraph> currentPage() {
 		return document.page(page);
+	}
+
+	// ---- the bookmark -----------------------------------------------------------------------------
+
+	/**
+	 * The marked page itself, not its number.
+	 *
+	 * <p>Inserting, deleting and moving pages all move the very list a page is, so a page put in
+	 * front of the marked one leaves the mark on the page it was in rather than on whatever now
+	 * stands at its old number. The few things that put a new list in a page's place – pasting a
+	 * page, applying a template, undo – are caught by {@link #bookmarkAt}: the list is gone, so the
+	 * page that now stands where it stood takes the mark.
+	 */
+	@Nullable
+	private List<Paragraph> bookmarked;
+	private int bookmarkAt = -1;
+	@Nullable
+	private Runnable onBookmark;
+
+	/** What to do once the bookmark has been moved by hand – the screen writes it down. */
+	public void onBookmark(Runnable listener) {
+		this.onBookmark = listener;
+	}
+
+	/** Puts the bookmark where it was left last time, without telling anybody it moved. */
+	public void restoreBookmark(int index) {
+		if (index < 0 || index >= document.pageCount()) {
+			return;
+		}
+		bookmarkAt = index;
+		bookmarked = document.page(index);
+	}
+
+	@Override
+	public boolean canBookmark() {
+		return true;
+	}
+
+	@Override
+	public int bookmark() {
+		if (bookmarkAt < 0) {
+			return -1;
+		}
+		List<List<Paragraph>> pages = document.pages();
+		for (int i = 0; i < pages.size(); i++) {
+			if (pages.get(i) == bookmarked) {
+				bookmarkAt = i;
+				return i;
+			}
+		}
+		bookmarkAt = Math.max(0, Math.min(bookmarkAt, pages.size() - 1));
+		bookmarked = pages.get(bookmarkAt);
+		return bookmarkAt;
+	}
+
+	@Override
+	public void setBookmark(int index) {
+		if (index < 0 || index >= document.pageCount()) {
+			bookmarkAt = -1;
+			bookmarked = null;
+		} else {
+			restoreBookmark(index);
+		}
+		if (onBookmark != null) {
+			onBookmark.run();
+		}
+	}
+
+	/** Asked of the file rather than kept here: the screen writes the bookmark down the moment it moves. */
+	@Override
+	public Bookmarks.Look bookmarkLook() {
+		return Bookmarks.look(Bookmarks.keyOf(document));
+	}
+
+	@Override
+	public void setBookmarkLook(Bookmarks.Look look) {
+		Bookmarks.setLook(Bookmarks.keyOf(document), look);
 	}
 
 	public List<Layout.LaidLine> lines() {
