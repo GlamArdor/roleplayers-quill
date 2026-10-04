@@ -29,7 +29,7 @@ function Set-Mod([bool]$wanted) {
 
 function Get-Clients {
     Get-CimInstance Win32_Process -Filter "Name='java.exe' or Name='javaw.exe'" |
-        Where-Object { $_.CommandLine -like '*KnotClient*' -or $_.CommandLine -like '*devlaunch*' }
+        Where-Object { ($_.CommandLine -like '*KnotClient*' -or $_.CommandLine -like '*devlaunch*') -and $_.CommandLine -notlike '*ModrinthApp*' }
 }
 
 switch ($action) {

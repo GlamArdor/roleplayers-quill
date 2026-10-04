@@ -8,10 +8,12 @@
 	},
 	"client": [
 		"AnvilScreenMixin",
+		"BookEditScreenMixin",
 		"BookScreenContentsMixin",
 		"BookScreenMixin",
 		"ChatScreenMixin",
 		"ClientPlayerEntityMixin",
+		"LecternScreenMixin",
 		"ScreenMixin",
 		"SignEditScreenMixin",
 		"TextFieldWidgetAccessor",

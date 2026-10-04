@@ -162,7 +162,7 @@ public final class SymbolPanel {
 		});
 		adder.accept(search);
 
-		// One shelf at a time with an arrow either side. There are seventeen of them; as buttons
+		// One shelf at a time with an arrow either side. There are nineteen of them; as buttons
 		// they would fill the strip and leave no room for what is on them.
 		adder.accept(ButtonWidget.builder(Text.literal("◀"), b -> step(-1))
 				.dimensions(x + SEARCH_WIDTH + 8, y + 3, 14, 14).build());

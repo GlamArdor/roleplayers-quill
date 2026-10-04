@@ -23,37 +23,53 @@ public final class Symbols {
 	public static final Map<String, String> SHELVES = new LinkedHashMap<>();
 
 	static {
+		// Faces, hearts and hands come first: they are what a letter or a note reaches for most.
+		// The odd scripts at the end are not there as letters but as the parts kaomoji are built
+		// from – (◕‿◕｡), ღ, ๑ – which nobody can type and everybody recognises.
+		SHELVES.put("faces",
+				"☺☻☹ツ❤♥♡❣❥❦❧❀✿ღ☚☛☜☝☞☟✍✌✎✉☮☯♨☠"
+						+ "◕◔◡◠‿｡ﾟ･ʊεзξӜϟ๑๏ஐ۞۩回㊣〓のあぃ"
+						// Drawn by the game's own font, not by Unicode: the bow, the trident and the
+						// rest are pictures of the items. Left out quietly where a pack drops them.
+						+ "🔥🌊🗡🏹🪓🔱🎣🧪🍖🪣🔔");
+		SHELVES.put("circled",
+				"➀➁➂➃➄➅➆➇➈➉①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳"
+						+ "ⒶⒷⒸⒹⒺⒻⒼⒽⒾⒿⓀⓁⓂⓃⓄⓅⓆⓇⓈⓉⓊⓋⓌⓍⓎⓏ"
+						+ "ⓐⓑⓒⓓⓔⓕⓖⓗⓘⓙⓚⓛⓜⓝⓞⓟⓠⓡⓢⓣⓤⓥⓦⓧⓨⓩ㊚㊛");
 		SHELVES.put("punctuation",
 				// No section sign here: see marks().
-				"«»„“”‘’‚‛‹›–—―‒…·•‣∙°¶†‡¡¿‽※‼⁇⁈⁉⁂№@&*/\\|¦~^_‾¯´`¨˘˚˜ˆ′″‴‵‶‷⁀⁄⁊");
+				"«»„“”‘’‚‛‹›–—―‒…·•‣∙°¶†‡¡¿‽※‼⁇⁈⁉⁂№@&*/\\|¦~^_‾¯´`¨˘˚˜ˆ′″‴‵‶‷⁀⁄⁊❝❞‖ꝏ™®©℅");
 		SHELVES.put("brackets",
-				"()[]{}⟨⟩⟪⟫⌈⌉⌊⌋⦃⦄⁅⁆「」『』【】〔〕〖〗〘〙〚〛《》〈〉‹›«»⸢⸣⸤⸥⟦⟧⟬⟭");
+				"()[]{}⟨⟩⟪⟫⌈⌉⌊⌋⦃⦄⁅⁆「」『』【】〔〕〖〗〘〙〚〛《》〈〉‹›«»⸢⸣⸤⸥⟦⟧⟬⟭﹃﹄︵");
 		SHELVES.put("arrows",
 				"←↑→↓↔↕↖↗↘↙↚↛↜↝↞↟↠↡↢↣↤↥↦↧↩↪↫↬↭↮↰↱↲↳↴↵↶↷↺↻↼↽↾↿⇀⇁⇂⇃⇄⇅⇆⇇⇈⇉⇊"
 						+ "⇐⇑⇒⇓⇔⇕⇖⇗⇘⇙⇚⇛⇜⇝⇠⇡⇢⇣⟵⟶⟷⟸⟹⟺➔➘➙➚➛➜➝➞➟➠➡➢➣➤➥➦➧➨➩➪➫➬➭➮➯"
-						+ "➱➲➳➴➵➶➷➸➹➺➻➼➽➾⤴⤵⬅⬆⬇⬈⬉⬊⬋⬌⬍");
+						+ "➱➲➳➴➵➶➷➸➹➺➻➼➽➾⤴⤵⬅⬆⬇⬈⬉⬊⬋⬌⬍⇨⌁⌃⌄");
 		SHELVES.put("maths",
 				"±×÷≈≉≠≡≢≤≥≪≫∞√∛∜∑∏∫∬∮∂∆∇∈∉∋∌⊂⊃⊄⊅⊆⊇∪∩∅∀∃∄¬∧∨⊕⊖⊗⊘⊙⊥∥∠∡∢∴∵∝"
-						+ "°′″‰‱½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞⅟↉№");
+						+ "°′″‰‱½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞⅟↉№℃∟⌀⌅⌆℘ℑℜℵ"
+						+ "⊮⊯⊰⊱⊲⊳⊴⊵⊶⊷⊸⊹⊺⊻⊼⊽⊾⊿⋀⋁⋂⋃⋄⋅⋆⋇⋈⋉⋊⋋⋌⋍⋎⋏⋐⋑⋒⋓⋔⋕⋖⋗⋘⋙⋚⋛⋜⋝⋞⋟"
+						+ "⋠⋡⋢⋣⋤⋥⋦⋧⋨⋩⋪⋫⋬⋭⋮⋯⋰⋱⋲⋳⋴⋵⋶⋷⋸⋹⋺⋻⋼⋽⋾⋿");
 		SHELVES.put("frames",
 				"─│┌┬┐├┼┤└┴┘╌╍╎╏═║╔╦╗╠╬╣╚╩╝╒╤╕╞╪╡╘╧╛╓╥╖╟╫╢╙╨╜╭╮╯╰╱╲╳"
-						+ "▀▁▂▃▄▅▆▇█▉▊▋▌▍▎▏▐░▒▓▔▕▖▗▘▙▚▛▜▝▞▟");
+						+ "┏┓┗┛┳┻┣┫╋━┃┠┨┯┷┱┲┅┇┄┆┈┊"
+						+ "▀▁▂▃▄▅▆▇█▉▊▋▌▍▎▏▐░▒▓▔▕▖▗▘▙▚▛▜▝▞▟"
+						+ "﹉﹊﹋﹌﹍﹎﹏︱︳︴⌇");
 		SHELVES.put("shapes",
 				"■□▪▫▬▭▮▯▰▱▲△▴▵▶▷▸▹►▻▼▽▾▿◀◁◂◃◄◅◆◇◈◉◊○◌◍◎●◐◑◒◓◔◕◖◗◘◙◚◛◜◝◞◟◠◡◢◣◤◥◦◯"
-						+ "⬛⬜⬝⬞⬟⬠⬡⬢⬣⬤⭐⭑⭒★☆✦✧✩✪✫✬✭✮✯✰❋❖✚✜✛✠✢✣✤✥");
-		// The pickaxes, swords and anvils people actually want in a roleplay book. All of them live
-		// in the plane the game's font covers; anything beyond it would draw as an empty box.
+						+ "⬛⬜⬝⬞⬟⬠⬡⬢⬣⬤⭐⭑⭒★☆✦✧✩✪✫✬✭✮✯✰❋❖✚✜✛✠✢✣✤✥✲✟▢▣▤▥▦▧▨▩⯪⯫");
+		// The pickaxes, swords and anvils people actually want in a roleplay book.
 		SHELVES.put("items",
 				"⚒⚔⚓⛏⛓⚙⚗⚖⚕⚘⚚⚛⚜⚑⚐⚠⚡⚰⚱⌛⏳⌚⌂⌨☎☏✁✂✃✄✆✇✈✉✎✏✐✑✒✓✔✕✖✗✘"
 						+ "⛨⛉⛊⛋⛭⛮⛯⛰⛪⛩⛲⛳⛴⛵⛺⛽⚲⚴⚵⚶⚷⚸☕☘⌬⍟⏏⏩⏪⏫⏬");
 		SHELVES.put("nature",
-				"☀☁☂☃☄☼☽☾❀❁❂❃❄❅❆❇❈❉❊❋⚘☘⛰⛅⛆⛇☇☈☉☊☋☌☍♁♃♄♅♆♇⚕⚚⚸⯃⯄");
+				"☀☁☂☃☄☼☽☾❀❁❂❃❄❅❆❇❈❉❊❋⚘☘⛰⛅⛆⛇☇☈☉☊☋☌☍♁♃♄♅♆♇⚕⚚⚸⯃⯄⛈");
 		SHELVES.put("signs",
-				"☐☑☒☓☠☢☣☤☥☦☧☨☩☪☫☬☭☮☯☸♀♂⚢⚣⚤⚥⚦⚧⚨⚩♈♉♊♋♌♍♎♏♐♑♒♓⚖⚞⚟⚝⚜");
+				"☐☑☒☓☠☢☣☤☥☦☧☨☩☪☫☬☭☮☯☸♀♂⚢⚣⚤⚥⚦⚧⚨⚩♈♉♊♋♌♍♎♏♐♑♒♓⚖⚞⚟⚝⚜♰♱☿⏻");
 		SHELVES.put("games", "♠♡♢♣♤♥♦♧♔♕♖♗♘♙♚♛♜♝♞♟⚀⚁⚂⚃⚄⚅⛀⛁⛂⛃⚆⚇⚈⚉⛉⛊⛋");
 		SHELVES.put("music", "♩♪♫♬♭♮♯⏏⏭⏮⏯⏸⏹⏺⏴⏵⏶⏷");
 		SHELVES.put("currency",
-				"₽$€£¥¢₴₸₹₺₼₾₿¤ƒ₡₢₣₤₥₦₧₨₩₪₫₭₮₯₰₱₲₳₵₶₷¤");
+				"₽$€£¥¢₴₸₹₺₼₾₿¤ƒ₡₢₣₤₥₦₧₨₩₪₫₭₮₯₰₱₲₳₵₶₷₠₻￡");
 		SHELVES.put("greek",
 				"αβγδεζηθικλμνξοπρστυφχψωΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩϐϑϒϕϖϰϱϲϳϴϵ");
 		SHELVES.put("indices",
@@ -64,7 +80,9 @@ public final class Symbols {
 		SHELVES.put("latin",
 				"ÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ"
 						+ "ŒœŠšŸŽžĀāĂăĄąĆćĈĉĊċČčĎďĐđĒēĖėĘęĚěĜĝĞğĢģĤĥĨĩĪīĮįİıĴĵĶķĹĺĻļĽľŁł"
-						+ "ŃńŅņŇňŌōŎŏŐőŔŕŖŗŘřŚśŜŝŞşŢţŤťŨũŪūŮůŰűŲųŴŵŶŷŹźŻżƏəƆɔ");
+						+ "ŃńŅņŇňŌōŎŏŐőŔŕŖŗŘřŚśŜŝŞşŢţŤťŨũŪūŮůŰűŲųŴŵŶŷŹźŻżƏəƆɔ"
+						// Upside down, for writing ɐ ʇxǝʇ that reads from the other side of the table.
+						+ "ɐɘɟɥɯɹʁʌʍʇǝɓʞɾʎʃƷƸ");
 	}
 
 	/** The name of the shelf that holds what has been used before. */
@@ -549,6 +567,7 @@ public final class Symbols {
 			addRange(found, 0x16A0, 0x16FF);
 			addRange(found, 0x2010, 0x2BFF);
 			addRange(found, 0xA700, 0xA7FF);
+			addRange(found, 0x1F300, 0x1FAFF);
 			index = List.copyOf(found);
 		}, "roleplayers-quill-symbol-index");
 		thread.setDaemon(true);

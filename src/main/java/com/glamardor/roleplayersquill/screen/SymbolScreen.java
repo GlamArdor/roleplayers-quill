@@ -63,7 +63,7 @@ public class SymbolScreen extends DialogScreen {
 		});
 		addDrawableChild(search);
 
-		// One shelf at a time with an arrow either side: seventeen shelves as buttons down the left
+		// One shelf at a time with an arrow either side: nineteen shelves as buttons down the left
 		// took more room than the symbols they were for.
 		addDrawableChild(ButtonWidget.builder(Text.literal("◀"), button -> step(-1))
 				.dimensions(panelX + 12, panelY + SHELF_Y, 16, 16).build());

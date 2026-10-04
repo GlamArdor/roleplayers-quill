@@ -139,4 +139,28 @@ public abstract class BookScreenMixin extends Screen implements ReadHost {
 			info.setReturnValue(true);
 		}
 	}
+
+	/**
+	 * Shift on the arrows goes to the first page or the last one.
+	 *
+	 * <p>Here rather than on the buttons, because the arrow keys' neighbours Page Up and Page Down
+	 * press the same buttons and should do the same thing. Not tied to {@code suppressed}: it adds
+	 * nothing to the screen, and a book opened sneaking is the one most likely to be leafed through.
+	 * The lectern overrides both methods and has a mixin of its own.
+	 */
+	@Inject(method = "goToPreviousPage", at = @At("HEAD"), cancellable = true)
+	private void roleplayersquill$toFirstPage(CallbackInfo ci) {
+		if (Screen.hasShiftDown()) {
+			this.jumpToPage(0);
+			ci.cancel();
+		}
+	}
+
+	@Inject(method = "goToNextPage", at = @At("HEAD"), cancellable = true)
+	private void roleplayersquill$toLastPage(CallbackInfo ci) {
+		if (Screen.hasShiftDown()) {
+			this.jumpToPage(this.contents.getPageCount() - 1);
+			ci.cancel();
+		}
+	}
 }

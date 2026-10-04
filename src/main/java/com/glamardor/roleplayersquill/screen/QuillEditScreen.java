@@ -1295,12 +1295,16 @@ public class QuillEditScreen extends Screen {
 		}
 		if (button == 0) {
 			if (editor.page() > 0 && overArrow(mouseX, mouseY, ARROW_PREVIOUS_X)) {
-				turnPage(-1);
+				turnPage(hasShiftDown() ? -editor.page() : -1);
 				playClick();
 				return true;
 			}
 			if (overArrow(mouseX, mouseY, ARROW_NEXT_X)) {
-				turnPage(1);
+				if (hasShiftDown()) {
+					toLastPage();
+				} else {
+					turnPage(1);
+				}
 				playClick();
 				return true;
 			}
@@ -1392,6 +1396,19 @@ public class QuillEditScreen extends Screen {
 			return;
 		}
 		editor.setPage(target);
+	}
+
+	/**
+	 * Shift on the forward arrow: straight to the last page there is.
+	 *
+	 * <p>Never past it. The plain arrow on the last page adds a page, and holding shift is asking
+	 * to get to the end of the book, not to make it longer.
+	 */
+	private void toLastPage() {
+		int last = editor.document().pageCount() - 1;
+		if (editor.page() < last) {
+			editor.setPage(last);
+		}
 	}
 
 	// ---- the keyboard -----------------------------------------------------------------------------
@@ -1534,11 +1551,15 @@ public class QuillEditScreen extends Screen {
 				return true;
 			}
 			case GLFW.GLFW_KEY_PAGE_UP -> {
-				turnPage(-1);
+				turnPage(shift ? -editor.page() : -1);
 				return true;
 			}
 			case GLFW.GLFW_KEY_PAGE_DOWN -> {
-				turnPage(1);
+				if (shift) {
+					toLastPage();
+				} else {
+					turnPage(1);
+				}
 				return true;
 			}
 			case GLFW.GLFW_KEY_TAB -> {

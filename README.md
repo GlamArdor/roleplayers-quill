@@ -38,9 +38,9 @@ the keystroke.
 **Lists, tables and rules.** Bulleted, dashed, numbered and lettered lists that renumber themselves.
 Tables typed as text and laid out in real columns. Horizontal rules.
 
-**A character browser.** Shelves of hand-picked symbols – the quotation marks a Russian typesetter
-uses, box drawing, dice faces, runes – and a search across eleven thousand characters by their
-Unicode names.
+**A character browser.** Shelves of hand-picked symbols – faces and hearts, the quotation marks a
+Russian typesetter uses, box drawing, circled letters, dice faces, runes – and a search across
+eleven thousand characters by their Unicode names.
 
 **A format brush.** Pick formatting up from one place and paint it onto another, like the one in
 Word.
@@ -290,10 +290,12 @@ and of the model is used and nothing is downloaded twice.
 | `Ctrl+Shift+Space` | a space the line will not break at |
 | `F7` `Shift+F7` | spelling on and off, next word not recognised |
 | `Ctrl+Enter` `Page Up` `Page Down` | new page, turn back, turn on |
+| `Shift` + an arrow, `Shift+Page Up` `Shift+Page Down` | first page, last page |
 | `Insert` | dictate |
 
 Reading a signed book carries three of these over, since there is nothing on that screen to sign or
-delete: `Ctrl+F` to find, `Ctrl+C` to copy a selection, `Ctrl+A` for the whole page.
+delete: `Ctrl+F` to find, `Ctrl+C` to copy a selection, `Ctrl+A` for the whole page. Shift on the arrows
+works there too, on a lectern and in the game's own editor.
 
 ## Versions
 
