@@ -307,11 +307,15 @@ public final class PageEditor implements BookView {
 	 */
 	public void type(char typed) {
 		Paragraph target = currentPage().get(paragraph);
+		caret = Math.min(caret, target.length());
 		AutoCorrect.Fix fix = hasSelection() ? null
 				: AutoCorrect.apply(target.text().substring(0, caret), typed);
 		if (fix == null) {
 			document.mark(QuillDocument.Change.TYPE);
 			deleteSelectionQuietly();
+			// Taken again: a selection over several paragraphs folds them into its first one, and the
+			// paragraph the caret was in may be one of those that no longer exist.
+			target = currentPage().get(paragraph);
 			target.insert(caret, String.valueOf(typed), styleForTyping());
 			caret++;
 			pending = null;
