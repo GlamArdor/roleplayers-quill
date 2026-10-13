@@ -114,6 +114,21 @@ public abstract class SignEditScreenMixin extends Screen {
 	}
 
 	/**
+	 * Keeps the sign open on the server while one of this mod's windows is over it.
+	 *
+	 * <p>The game sends a sign's text the moment its editor is replaced, and the server takes that as
+	 * the end of the edit: it saves the text and stops letting this player change the sign. So a
+	 * symbol picked in the browser, and everything typed after coming back, was refused when the sign
+	 * was finished. The text now goes when the editor really closes, with everything in it.
+	 */
+	@Inject(method = "removed", at = @At("HEAD"), cancellable = true)
+	private void roleplayersquill$keepEditing(CallbackInfo ci) {
+		if (com.glamardor.roleplayersquill.screen.Detour.isLeaving(this)) {
+			ci.cancel();
+		}
+	}
+
+	/**
 	 * Copy, paste and clear, in a column to the left of the sign, as Stendhal has them.
 	 *
 	 * <p>Through the system clipboard, one row to a line, so a sign can be copied onto another sign

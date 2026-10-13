@@ -1,7 +1,6 @@
 package com.glamardor.roleplayersquill.screen;
 
 import com.glamardor.roleplayersquill.config.QuillConfig;
-import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.text.Text;
 import org.jetbrains.annotations.Nullable;
@@ -113,7 +112,7 @@ public final class SymbolBar {
 
 		buttons.add(new IconButton(0, 0, Icons.SYMBOL, Text.translatable("roleplayersquill.tool.symbols"),
 				openFull != null ? openFull
-						: () -> MinecraftClient.getInstance().setScreen(new SymbolScreen(owner, symbol -> {
+						: () -> Detour.open(owner, new SymbolScreen(owner, symbol -> {
 							insert.accept(symbol);
 							QuillConfig.get().rememberSymbol(symbol);
 						}))));

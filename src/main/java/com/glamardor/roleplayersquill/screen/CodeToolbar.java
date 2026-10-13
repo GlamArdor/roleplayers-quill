@@ -1,7 +1,6 @@
 package com.glamardor.roleplayersquill.screen;
 
 import com.glamardor.roleplayersquill.text.QuillStyle;
-import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
@@ -38,7 +37,7 @@ public final class CodeToolbar {
 
 		buttons.add(new IconButton(0, 0, Icons.COLOR_SWATCH,
 				Text.translatable("roleplayersquill.tool.colour"),
-				() -> MinecraftClient.getInstance().setScreen(new ColourScreen(owner, colour -> {
+				() -> Detour.open(owner, new ColourScreen(owner, colour -> {
 					if (colour == QuillStyle.INHERIT) {
 						insert.accept(prefix + "r");
 						return;
@@ -49,7 +48,7 @@ public final class CodeToolbar {
 
 		buttons.add(new IconButton(0, 0, Icons.SYMBOL,
 				Text.translatable("roleplayersquill.tool.symbols"),
-				() -> MinecraftClient.getInstance().setScreen(new SymbolScreen(owner, insert::accept))));
+				() -> Detour.open(owner, new SymbolScreen(owner, insert::accept))));
 
 		return buttons;
 	}
