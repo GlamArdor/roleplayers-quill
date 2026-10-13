@@ -61,8 +61,43 @@ public abstract class SignEditScreenMixin extends Screen {
 		super(title);
 	}
 
+	/** Every widget this mod put on the screen, so that they can be taken off again on their own. */
+	@Unique
+	private final List<net.minecraft.client.gui.Element> roleplayersquill$ours = new java.util.ArrayList<>();
+
 	@Inject(method = "init", at = @At("TAIL"))
 	private void roleplayersquill$addToolbar(CallbackInfo ci) {
+		roleplayersquill$ours.clear();
+		roleplayersquill$build();
+	}
+
+	/**
+	 * Builds this mod's widgets again and nothing else.
+	 *
+	 * <p>Paging the row of symbols, or opening the strip under the sign, used to rebuild the whole
+	 * screen. That runs the sign editor's own init again, and other mods hook it: Litematica, with
+	 * its sign text paste on, writes the text of the sign in a loaded schematic over all four rows
+	 * every time it runs – and an empty sign in the schematic wipes the real one.
+	 */
+	@Unique
+	private void roleplayersquill$rebuild() {
+		for (net.minecraft.client.gui.Element element : roleplayersquill$ours) {
+			remove(element);
+		}
+		roleplayersquill$ours.clear();
+		setFocused(null);
+		roleplayersquill$build();
+	}
+
+	@Unique
+	private <T extends net.minecraft.client.gui.Element & net.minecraft.client.gui.Drawable
+			& net.minecraft.client.gui.Selectable> void roleplayersquill$add(T widget) {
+		addDrawableChild(widget);
+		roleplayersquill$ours.add(widget);
+	}
+
+	@Unique
+	private void roleplayersquill$build() {
 		QuillConfig config = QuillConfig.get();
 		if (!config.signEditor) {
 			return;
@@ -83,13 +118,13 @@ public abstract class SignEditScreenMixin extends Screen {
 		boolean canDock = room >= SymbolPanel.minimumHeight();
 
 		List<IconButton> symbols = SymbolBar.build(owner, Math.min(this.width - 20, 320), insert,
-				this::clearAndInit, canDock ? () -> {
+				this::roleplayersquill$rebuild, canDock ? () -> {
 					roleplayersquill$symbolsOpen = !roleplayersquill$symbolsOpen;
-					clearAndInit();
+					roleplayersquill$rebuild();
 				} : null);
 		SymbolBar.place(symbols, this.width / 2 - symbols.size() * (IconButton.SIZE + 1) / 2, y);
 		for (IconButton button : symbols) {
-			addDrawableChild(button);
+			roleplayersquill$add(button);
 		}
 
 		if (canDock && roleplayersquill$symbolsOpen) {
@@ -99,7 +134,7 @@ public abstract class SignEditScreenMixin extends Screen {
 			// no mouseClicked of its own, so there is nothing to inject into to hand it the click.
 			panel.drawItself();
 			panel.layout(this.width / 2 - stripWidth / 2, stripTop, stripWidth, Math.min(room, 128),
-					this::addDrawableChild, this.textRenderer);
+					this::roleplayersquill$add, this.textRenderer);
 		}
 
 		roleplayersquill$addClipboard();
@@ -108,7 +143,7 @@ public abstract class SignEditScreenMixin extends Screen {
 			List<IconButton> codes = CodeToolbar.build(owner, LegacyCodec.SECTION, insert);
 			CodeToolbar.place(codes, this.width / 2, y - IconButton.SIZE - 1);
 			for (IconButton button : codes) {
-				addDrawableChild(button);
+				roleplayersquill$add(button);
 			}
 		}
 	}
@@ -160,7 +195,7 @@ public abstract class SignEditScreenMixin extends Screen {
 		for (int i = 0; i < buttons.size(); i++) {
 			IconButton button = buttons.get(i);
 			button.setPosition(x, top + i * (IconButton.SIZE + 1));
-			addDrawableChild(button);
+			roleplayersquill$add(button);
 		}
 	}
 
