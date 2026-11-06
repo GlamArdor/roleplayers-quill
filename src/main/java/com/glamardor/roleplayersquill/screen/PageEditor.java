@@ -439,7 +439,7 @@ public final class PageEditor implements BookView {
 
 		document.mark(QuillDocument.Change.DELETE);
 		if (caret > 0) {
-			int to = wholeWord ? wordStart(current.get(paragraph), caret) : caret - 1;
+			int to = wholeWord ? wordStart(current.get(paragraph), caret) : stepBack(current.get(paragraph), caret);
 			// A run of backspaces is one step, but stopping at a space ends it: press undo and the
 			// word you were taking out comes back, not the paragraph.
 			if (Character.isWhitespace(current.get(paragraph).charAt(caret - 1))) {
@@ -510,7 +510,7 @@ public final class PageEditor implements BookView {
 		List<Paragraph> current = currentPage();
 		Paragraph host = current.get(paragraph);
 		if (caret < host.length()) {
-			int to = wholeWord ? wordEnd(host, caret) : caret + 1;
+			int to = wholeWord ? wordEnd(host, caret) : stepForward(host, caret);
 			host.delete(caret, to);
 		} else if (paragraph + 1 < current.size()) {
 			host.append(current.remove(paragraph + 1));
@@ -682,9 +682,21 @@ public final class PageEditor implements BookView {
 
 	// ---- moving about ---------------------------------------------------------------------------------
 
+	/** One character back, where a letter written as a surrogate pair counts as one character. */
+	private static int stepBack(Paragraph host, int at) {
+		return at >= 2 && Character.isLowSurrogate(host.charAt(at - 1))
+				&& Character.isHighSurrogate(host.charAt(at - 2)) ? at - 2 : at - 1;
+	}
+
+	/** One character forward, the same way. */
+	private static int stepForward(Paragraph host, int at) {
+		return at + 2 <= host.length() && Character.isHighSurrogate(host.charAt(at))
+				&& Character.isLowSurrogate(host.charAt(at + 1)) ? at + 2 : at + 1;
+	}
+
 	public void moveLeft(boolean extend, boolean wholeWord) {
 		if (caret > 0) {
-			caret = wholeWord ? wordStart(currentPage().get(paragraph), caret) : caret - 1;
+			caret = wholeWord ? wordStart(currentPage().get(paragraph), caret) : stepBack(currentPage().get(paragraph), caret);
 		} else if (paragraph > 0) {
 			paragraph--;
 			caret = currentPage().get(paragraph).length();
@@ -697,7 +709,7 @@ public final class PageEditor implements BookView {
 	public void moveRight(boolean extend, boolean wholeWord) {
 		Paragraph host = currentPage().get(paragraph);
 		if (caret < host.length()) {
-			caret = wholeWord ? wordEnd(host, caret) : caret + 1;
+			caret = wholeWord ? wordEnd(host, caret) : stepForward(host, caret);
 		} else if (paragraph + 1 < currentPage().size()) {
 			paragraph++;
 			caret = 0;

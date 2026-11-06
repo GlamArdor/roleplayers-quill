@@ -193,7 +193,7 @@ public final class Layout {
 				float width = carried;
 				while (scan < length) {
 					char c = paragraph.charAt(scan);
-					float advance = Widths.advance(c, paragraph.styleAt(scan).bold());
+					float advance = Widths.advanceAt(paragraph, scan);
 					// The blank is remembered as somewhere the line may end before the width is
 					// tested, which is the order TextHandler.LineBreakingVisitor does it in: a blank
 					// that is itself what tips the line over ends the line where it stands, rather
@@ -515,7 +515,7 @@ public final class Layout {
 	private static float[] cumulativeWidths(Paragraph paragraph) {
 		float[] cumulative = new float[paragraph.length() + 1];
 		for (int i = 0; i < paragraph.length(); i++) {
-			cumulative[i + 1] = cumulative[i] + Widths.advance(paragraph.charAt(i), paragraph.styleAt(i).bold());
+			cumulative[i + 1] = cumulative[i] + Widths.advanceAt(paragraph, i);
 		}
 		return cumulative;
 	}
@@ -535,13 +535,13 @@ public final class Layout {
 				continue;
 			}
 			Widths.Padding pad = c == ' ' ? line.padFor(i) : null;
-			x += pad != null ? pad.width() : Widths.advance(c, paragraph.styleAt(i).bold());
+			x += pad != null ? pad.width() : Widths.advanceAt(paragraph, i);
 		}
 		// Past the drawn text, over the trailing blanks the line cut off. Nothing is drawn there, but
 		// the caret still belongs after them: a space typed at the end of a line is a space, and a
 		// caret that does not move when you press the space bar looks like a key that did not work.
 		for (int i = line.contentEnd; i < Math.min(index, line.end); i++) {
-			x += Widths.advance(paragraph.charAt(i), paragraph.styleAt(i).bold());
+			x += Widths.advanceAt(paragraph, i);
 		}
 		return x;
 	}
@@ -564,7 +564,7 @@ public final class Layout {
 		float x = xOf(line, paragraph, line.contentEnd);
 		float below = -1.0f;
 		for (int i = line.contentEnd; i < index; i++) {
-			float advance = Widths.advance(paragraph.charAt(i), paragraph.styleAt(i).bold());
+			float advance = Widths.advanceAt(paragraph, i);
 			if (below >= 0.0f) {
 				below += advance;
 			} else if (x + advance > PAGE_WIDTH) {
@@ -589,7 +589,7 @@ public final class Layout {
 			char c = paragraph.charAt(i);
 			Widths.Padding pad = c == ' ' ? line.padFor(i) : null;
 			float advance = i == line.leaderAt ? line.leaderWidth()
-					: pad != null ? pad.width() : Widths.advance(c, paragraph.styleAt(i).bold());
+					: pad != null ? pad.width() : Widths.advanceAt(paragraph, i);
 			if (x < at + advance / 2.0f) {
 				return i;
 			}

@@ -473,7 +473,7 @@ public final class TableBuilder {
 		StringBuilder out = new StringBuilder();
 		float used = 0.0f;
 		for (int i = 0; i < cell.length(); i++) {
-			float advance = Widths.advance(cell.charAt(i), bold);
+			float advance = Widths.advanceAt(cell, i, bold);
 			if (used + advance > room) {
 				break;
 			}

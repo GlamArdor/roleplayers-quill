@@ -111,7 +111,7 @@ public final class BookPreview {
 				at += pad.width();
 				continue;
 			}
-			at += Widths.advance(paragraph.charAt(i), paragraph.styleAt(i).bold());
+			at += Widths.advanceAt(paragraph, i);
 		}
 		return at;
 	}

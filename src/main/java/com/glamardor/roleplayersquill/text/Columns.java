@@ -101,7 +101,7 @@ public final class Columns {
 	private static float width(Paragraph paragraph) {
 		float total = 0.0f;
 		for (int i = 0; i < paragraph.length(); i++) {
-			total += Widths.advance(paragraph.charAt(i), paragraph.styleAt(i).bold());
+			total += Widths.advanceAt(paragraph, i);
 		}
 		return total;
 	}

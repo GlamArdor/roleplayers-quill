@@ -209,7 +209,7 @@ public final class LegacyCodec {
 			float width = 0.0f;
 			while (scan < length) {
 				char c = paragraph.charAt(scan);
-				float advance = Widths.advance(c, paragraph.styleAt(scan).bold());
+				float advance = Widths.advanceAt(paragraph, scan);
 				if (c == ' ' || c == Widths.NOBREAK) {
 					lastBlank = scan;
 				}
@@ -322,7 +322,7 @@ public final class LegacyCodec {
 				}
 				continue;
 			}
-			float advance = Widths.advance(c, bold);
+			float advance = Widths.advanceAt(segment, i, bold);
 			if (c == ' ') {
 				haveSpace = true;
 				beforeSpace = total;
@@ -861,7 +861,7 @@ public final class LegacyCodec {
 	private static float widthOf(Paragraph paragraph, int from, int to) {
 		float width = 0.0f;
 		for (int i = from; i < to; i++) {
-			width += Widths.advance(paragraph.charAt(i), paragraph.styleAt(i).bold());
+			width += Widths.advanceAt(paragraph, i);
 		}
 		return width;
 	}
@@ -908,7 +908,7 @@ public final class LegacyCodec {
 				if (c == ' ') {
 					lastSpace = i;
 				}
-				float advance = Widths.advance(c, styles.get(i).bold());
+				float advance = Widths.advanceAt(text, i, styles.get(i).bold());
 				total += advance;
 				if (nonEmpty && total > Layout.PAGE_WIDTH) {
 					cut = lastSpace != -1 ? lastSpace : i;
@@ -947,7 +947,7 @@ public final class LegacyCodec {
 		}
 		float bodyWidth = 0.0f;
 		for (int i = lead; i < text.length(); i++) {
-			bodyWidth += Widths.advance(text.charAt(i), styles.get(i).bold());
+			bodyWidth += Widths.advanceAt(text, i, styles.get(i).bold());
 		}
 
 		// What the blanks are depends on whether the line they open ever had to wrap.

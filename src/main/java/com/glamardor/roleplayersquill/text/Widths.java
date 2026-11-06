@@ -118,6 +118,39 @@ public final class Widths {
 		return width;
 	}
 
+	/**
+	 * The advance of the character at {@code index}, for code that walks text one {@code char} at a
+	 * time.
+	 *
+	 * <p>A letter outside the basic plane – the fraktur and script alphabets people sign with – is two
+	 * {@code char}s, and each half on its own is a glyph the font does not have, measured as one. So
+	 * the pair is measured whole on its first half and the second half costs nothing, which keeps
+	 * the sum right and never lets a line end between the two.
+	 */
+	public static float advanceAt(CharSequence text, int index, boolean bold) {
+		return advanceOf(text.charAt(index),
+				index > 0 ? text.charAt(index - 1) : 0,
+				index + 1 < text.length() ? text.charAt(index + 1) : 0, bold);
+	}
+
+	/** {@link #advanceAt(CharSequence, int, boolean)} in the paragraph's own style at that point. */
+	public static float advanceAt(Paragraph paragraph, int index) {
+		return advanceOf(paragraph.charAt(index),
+				index > 0 ? paragraph.charAt(index - 1) : 0,
+				index + 1 < paragraph.length() ? paragraph.charAt(index + 1) : 0,
+				paragraph.styleAt(index).bold());
+	}
+
+	private static float advanceOf(char c, char before, char after, boolean bold) {
+		if (Character.isHighSurrogate(c) && Character.isLowSurrogate(after)) {
+			return advance(Character.toCodePoint(c, after), bold);
+		}
+		if (Character.isLowSurrogate(c) && Character.isHighSurrogate(before)) {
+			return 0.0f;
+		}
+		return advance(c, bold);
+	}
+
 	public static float space() {
 		return advance(' ', false);
 	}
