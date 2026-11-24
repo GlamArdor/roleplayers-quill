@@ -1,0 +1,83 @@
+plugins {
+	id 'net.fabricmc.fabric-loom' version "${loom_version}"
+}
+
+version = "${project.mod_version}+26.3"
+group = project.maven_group
+
+base {
+	archivesName = project.archives_base_name
+}
+
+// src/gametest: client game tests that open a world, drive the editor with real key presses and
+// clicks, and take screenshots (./gradlew runClientGameTest). Never part of the jar.
+fabricApi {
+	configureTests {
+		createSourceSet = true
+		modId = "roleplayersquill-test"
+		enableGameTests = false
+		enableClientGameTests = true
+		eula = true
+	}
+}
+
+// -PextraMods=<folder> loads a whole modpack next to the mod in the game test, to see it survive
+// in a real player's setup.
+if (project.hasProperty("extraMods")) {
+	loom {
+		runs {
+			configureEach {
+				vmArg "-Dfabric.addMods=" + project.property("extraMods").toString()
+			}
+		}
+	}
+}
+
+repositories {
+	maven {
+		url = "https://api.modrinth.com/maven"
+		content { includeGroup "maven.modrinth" }
+	}
+}
+
+dependencies {
+	minecraft "com.mojang:minecraft:${project.minecraft_version}"
+	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+
+	// sherpa-onnx publishes its engine and its models as bzip2 tarballs, and Java
+	// reads neither format on its own.
+	implementation "org.apache.commons:commons-compress:${project.commons_compress_version}"
+	include "org.apache.commons:commons-compress:${project.commons_compress_version}"
+
+	// Only ever touched from inside a try in the screen factory, so the jar runs
+	// perfectly well without either.
+	compileOnly "maven.modrinth:modmenu:${project.modmenu_version}"
+	compileOnly "maven.modrinth:cloth-config:${project.cloth_version}"
+	if (!project.hasProperty("noCloth")) {
+		localRuntime "maven.modrinth:modmenu:${project.modmenu_version}"
+		localRuntime "maven.modrinth:cloth-config:${project.cloth_version}"
+	}
+}
+
+processResources {
+	inputs.property "version", project.version
+	inputs.property "minecraft_range", project.minecraft_range
+
+	filesMatching("fabric.mod.json") {
+		expand "version": project.version, "minecraft_range": project.minecraft_range
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	it.options.release = 25
+	it.options.encoding = 'UTF-8'
+	it.options.compilerArgs += ['-Xmaxerrs', '5000']
+}
+
+java {
+	withSourcesJar()
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(25)
+	}
+}

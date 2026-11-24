@@ -1,0 +1,215 @@
+package com.glamardor.roleplayersquill.screen;
+
+import net.minecraft.client.input.MouseButtonEvent;
+
+import com.glamardor.roleplayersquill.text.LegacyCodec;
+import com.glamardor.roleplayersquill.text.Paragraph;
+import com.glamardor.roleplayersquill.text.QuillDocument;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.List;
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.CommonComponents;
+import net.minecraft.network.chat.Component;
+import net.minecraft.util.Mth;
+
+/**
+ * The whole book at a glance: every page with its opening line, and the buttons to shuffle them.
+ *
+ * <p>Turning a hundred pages one at a time to find the one with the map on it is the sort of thing
+ * an editor should make unnecessary.
+ */
+public class PagesScreen extends DialogScreen {
+	private static final int ROW = 22;
+	private static final int VISIBLE = 7;
+
+	private final BookView view;
+	private int scroll;
+	private int chosen;
+
+	public PagesScreen(@Nullable Screen parent, BookView view) {
+		super(parent, Component.translatable("roleplayersquill.pages.title"));
+		this.view = view;
+		this.chosen = view.page();
+		this.panelWidth = 300;
+		this.panelHeight = VISIBLE * ROW + 84;
+	}
+
+	@Override
+	protected void init() {
+		super.init();
+		scroll = Mth.clamp(chosen - VISIBLE / 2, 0, Math.max(0, view.document().pageCount() - VISIBLE));
+
+		int y = panelY + panelHeight - 52;
+		// Reordering, duplicating and deleting change the book, so a book nobody can write to is
+		// shown the list and the "go" button and nothing that would suggest it could be edited.
+		if (view.editable()) {
+			addRenderableWidget(Button.builder(Component.literal("▲"), button -> move(-1))
+					.bounds(panelX + 12, y, 26, 20).build());
+			addRenderableWidget(Button.builder(Component.literal("▼"), button -> move(1))
+					.bounds(panelX + 42, y, 26, 20).build());
+			addRenderableWidget(Button.builder(Component.translatable("roleplayersquill.pages.duplicate"), button -> {
+				view.setPage(chosen);
+				view.duplicatePage();
+				chosen = view.page();
+				rebuildWidgets();
+			}).bounds(panelX + 72, y, 96, 20).build());
+			addRenderableWidget(Button.builder(Component.translatable("roleplayersquill.pages.delete"), button -> {
+				view.setPage(chosen);
+				view.removePage();
+				chosen = view.page();
+				rebuildWidgets();
+			}).bounds(panelX + 172, y, 116, 20).build());
+		}
+
+		addRenderableWidget(Button.builder(Component.translatable("roleplayersquill.pages.go"), button -> {
+			view.setPage(chosen);
+			onClose();
+		}).bounds(panelX + 12, panelY + panelHeight - 28, 140, 20).build());
+		addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, button -> onClose())
+				.bounds(panelX + 158, panelY + panelHeight - 28, 130, 20).build());
+	}
+
+	private void move(int delta) {
+		int to = chosen + delta;
+		if (to < 0 || to >= view.document().pageCount()) {
+			return;
+		}
+		view.document().mark();
+		view.document().movePage(chosen, to);
+		chosen = to;
+		reveal();
+		view.touch();
+	}
+
+	/**
+	 * Brings the chosen page back into the seven rows on show.
+	 *
+	 * <p>Walking a page down the book moved the highlight and not the list, so past the seventh row
+	 * the page being moved was somewhere below the window and the list sat still.
+	 */
+	private void reveal() {
+		if (chosen < scroll) {
+			scroll = chosen;
+		} else if (chosen >= scroll + VISIBLE) {
+			scroll = chosen - VISIBLE + 1;
+		}
+		scroll = Mth.clamp(scroll, 0, Math.max(0, view.document().pageCount() - VISIBLE));
+	}
+
+	@Override
+	public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+		double mouseX = event.x(), mouseY = event.y();
+		int button = Input.button(event);
+		int index = rowAt(mouseX, mouseY);
+		if (index >= 0) {
+			chosen = index;
+			if (button == 0 && overRibbon(mouseX)) {
+				view.setBookmark(view.bookmark() == index ? -1 : index);
+				Ribbon.playClick();
+			}
+			return true;
+		}
+		return super.mouseClicked(event, doubleClick);
+	}
+
+	@Override
+	public boolean mouseScrolled(double mouseX, double mouseY, double horizontal, double vertical) {
+		scroll = Mth.clamp(scroll - (int) Math.signum(vertical), 0,
+				Math.max(0, view.document().pageCount() - VISIBLE));
+		return true;
+	}
+
+	/** Where in a row its bookmark hangs: the right end, past where the opening line is cut off. */
+	private int ribbonX() {
+		return panelX + panelWidth - 12 - 6 - Ribbon.WIDTH;
+	}
+
+	private boolean overRibbon(double mouseX) {
+		return view.canBookmark() && mouseX >= ribbonX() - 4 && mouseX < ribbonX() + Ribbon.WIDTH + 4;
+	}
+
+	private int rowAt(double mouseX, double mouseY) {
+		int listX = panelX + 12;
+		int listY = panelY + 24;
+		if (mouseX < listX || mouseX > panelX + panelWidth - 12) {
+			return -1;
+		}
+		// Math.floor, not a cast: a cast rounds towards zero and a click above the list would land
+		// on its first row.
+		int row = (int) Math.floor((mouseY - listY) / (double) ROW);
+		if (row < 0 || row >= VISIBLE) {
+			return -1;
+		}
+		int index = scroll + row;
+		return index < view.document().pageCount() ? index : -1;
+	}
+
+	@Override
+	public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
+		super.extractRenderState(context, mouseX, mouseY, delta);
+
+		int listX = panelX + 12;
+		int listY = panelY + 24;
+		int hovered = rowAt(mouseX, mouseY);
+		int mark = view.canBookmark() ? view.bookmark() : -1;
+
+		for (int row = 0; row < VISIBLE; row++) {
+			int index = scroll + row;
+			if (index >= view.document().pageCount()) {
+				break;
+			}
+			int y = listY + row * ROW;
+			int background = index == chosen ? 0x803C6390 : index == hovered ? 0x40FFFFFF : 0x30000000;
+			context.fill(listX, y, panelX + panelWidth - 12, y + ROW - 2, background);
+
+			context.text(font, Component.literal(String.valueOf(index + 1)).withStyle(ChatFormatting.GOLD),
+					listX + 4, y + 3, 0xFFFFFFFF, false);
+			context.text(font, summary(view.document().page(index)),
+					listX + 26, y + 3, 0xFFD0D0D0, false);
+			context.text(font, Component.translatable("roleplayersquill.pages.chars",
+							LegacyCodec.strip(firstLine(view.document().page(index))).length())
+					.withStyle(ChatFormatting.DARK_GRAY), listX + 26, y + 12, 0xFFFFFFFF, false);
+			if (view.canBookmark()) {
+				Ribbon.drawInList(context, ribbonX(), y + 2, index == mark,
+						index == hovered && overRibbon(mouseX), index == hovered, view.bookmarkLook());
+			}
+		}
+
+		if (hovered >= 0 && overRibbon(mouseX)) {
+			context.setTooltipForNextFrame(font, Component.translatable(hovered == mark
+					? "roleplayersquill.bookmark.remove.list" : "roleplayersquill.bookmark.put"), mouseX, mouseY);
+		}
+
+		context.centeredText(font,
+				Component.translatable("roleplayersquill.pages.count",
+						view.document().pageCount(), QuillDocument.MAX_PAGES).withStyle(ChatFormatting.GRAY),
+				width / 2, panelY + panelHeight - 66, 0xFFFFFFFF);
+	}
+
+	private Component summary(List<Paragraph> page) {
+		String line = firstLine(page);
+		if (line.isBlank()) {
+			return Component.translatable("roleplayersquill.pages.empty").withStyle(ChatFormatting.DARK_GRAY);
+		}
+		// Short of the bookmark at the right end of the row, so the two never draw over each other.
+		return Component.literal(font.plainSubstrByWidth(line, panelWidth - 76));
+	}
+
+	private static String firstLine(List<Paragraph> page) {
+		StringBuilder out = new StringBuilder();
+		for (Paragraph paragraph : page) {
+			if (paragraph.isEmpty()) {
+				continue;
+			}
+			out.append(paragraph.text()).append(' ');
+			if (out.length() > 80) {
+				break;
+			}
+		}
+		return out.toString().strip();
+	}
+}

@@ -319,6 +319,18 @@ roleplayers-quill-1.0.0+1.21.6-1.21.8.jar refers to 259 distinct Minecraft membe
 It stops at 1.21.8 on one side because 1.21.9 rewrote the GUI, and at 1.21.6 on the other because
 1.21.6 rewrote the render stack. Neither is a mapping change that a jar can be made to straddle.
 
+A second jar covers `26.3`, from `versions/26`. From 26.1 the game ships under Mojang's own names
+with no intermediary to remap through, runs on Java 25, and from 26.3 reads the keyboard and mouse
+through SDL instead of GLFW, so it cannot share a jar with the 1.21 line. Its sources are the same
+mod, carried over to Mojang's names and to the new input and drawing calls. It has a game test that
+opens a world and drives the editor, the reader, the lectern, the chat, a sign and an anvil with real
+key presses and clicks, then asks the server what it received:
+
+```
+cd versions/26
+./gradlew runClientGameTest
+```
+
 ## Checking the arithmetic
 
 The alignment is a sum over glyph advances, and a sum that is quietly two pixels out looks fine in a
@@ -371,7 +383,8 @@ words whose answers are known:
 ./gradlew build
 ```
 
-The jar lands in `build/libs`. Java 21.
+The jar lands in `build/libs`. Java 21. The 26.3 jar is built the same way in `versions/26`, with
+Java 25, which gradle fetches by itself.
 
 ## Thanks
 

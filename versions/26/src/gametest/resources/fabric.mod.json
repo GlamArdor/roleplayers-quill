@@ -1,0 +1,15 @@
+{
+	"schemaVersion": 1,
+	"id": "roleplayersquill-test",
+	"version": "1.0.0",
+	"name": "Roleplayer's Quill tests",
+	"environment": "*",
+	"entrypoints": {
+		"fabric-client-gametest": [
+			"com.glamardor.roleplayersquill.test.QuillGameTest"
+		]
+	},
+	"depends": {
+		"roleplayersquill": "*"
+	}
+}
