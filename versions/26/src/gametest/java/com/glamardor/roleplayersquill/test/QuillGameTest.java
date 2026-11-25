@@ -134,6 +134,9 @@ public final class QuillGameTest implements FabricClientGameTest {
 		input.pressKey(options -> options.keyUse);
 		ctx.waitForScreen(QuillEditScreen.class);
 		check("using a writable book opens the Quill editor", screenIs(ctx, QuillEditScreen.class));
+		// The test types through charTyped directly, past SDL; a real keyboard only gets letters
+		// through while SDL text input is on.
+		check("SDL text input is on in the editor", textInputOn(ctx));
 		ctx.waitTicks(5);
 		ctx.takeScreenshot("quill_01_editor_empty");
 
@@ -354,6 +357,9 @@ public final class QuillGameTest implements FabricClientGameTest {
 		openWith(ctx, InputConstants.KEY_T, "Ctrl+T table");
 		openWith(ctx, InputConstants.KEY_K, "Ctrl+K link");
 		openWith(ctx, InputConstants.KEY_F, "Ctrl+F find");
+		ctx.waitTicks(2);
+		check("text input is on again after the find box gave up the keyboard",
+				screenIs(ctx, QuillEditScreen.class) && textInputOn(ctx));
 		ctx.setScreen(() -> null);
 		ctx.waitTicks(3);
 	}
@@ -742,6 +748,11 @@ public final class QuillGameTest implements FabricClientGameTest {
 
 	private static PageEditor editor(Minecraft mc) {
 		return (PageEditor) read(mc.gui.screen(), QuillEditScreen.class, "editor");
+	}
+
+	private static boolean textInputOn(ClientGameTestContext ctx) {
+		return ctx.computeOnClient(mc -> (Boolean) read(mc.textInputManager(),
+				com.mojang.blaze3d.platform.TextInputManager.class, "textInputEnabled"));
 	}
 
 	private static String pageText(ClientGameTestContext ctx) {

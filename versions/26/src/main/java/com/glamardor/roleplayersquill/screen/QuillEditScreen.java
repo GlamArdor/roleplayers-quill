@@ -238,6 +238,10 @@ public class QuillEditScreen extends Screen {
 
 	@Override
 	protected void init() {
+		// From 26.3 the game reads the keyboard through SDL, and SDL only hands over typed letters
+		// while text input is switched on. The game's own text boxes switch it on when they take the
+		// focus; the page here is not a text box, so it has to ask for itself.
+		minecraft.textInputManager().startTextInput(this);
 		Widths.clear();
 		warnAboutFont();
 		offerToMend();
@@ -1189,6 +1193,9 @@ public class QuillEditScreen extends Screen {
 
 	@Override
 	public void tick() {
+		// A search or link box that takes the focus and then gives it up switches text input off
+		// behind it. Claimed again every tick, which costs nothing while it is already on.
+		minecraft.textInputManager().startTextInput(this);
 		blink++;
 		keepDraft(false);
 		if (colourButton != null) {
@@ -2237,6 +2244,7 @@ public class QuillEditScreen extends Screen {
 
 	@Override
 	public void removed() {
+		minecraft.textInputManager().stopTextInput(this);
 		keepDraft(true);
 		rememberBookmark();
 		Dictation.release();
